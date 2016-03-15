@@ -77,7 +77,7 @@ static void mainloop(void)
     unsigned int count;
     start_capturing();
     count = 0;
-    while(count++ < FRAME_NUM)
+    while(count++ < gc.frame_count)
     {
         /* EAGAIN - continue select loop. */
         while(read_frame(count) == EAGAIN);
@@ -273,6 +273,7 @@ static void open_device(void)
     }
 }
 
+#if 0
 static void query_format(void)
 {
     struct v4l2_fmtdesc fmtdesc;
@@ -288,7 +289,6 @@ static void query_format(void)
     }
 }
 
-#if 0
 static void query_ctrl(void)
 {
     struct v4l2_control control;
@@ -307,13 +307,17 @@ static void query_ctrl(void)
 }
 #endif
 
-void help() {
-    printf("Usage: -d device -w width -h height -f format\n");
+static void help() {
+    printf("Usage:\n");
+    printf("\t-p device path\n");
+    printf("\t-w width\n\t-h height\n");
+    printf("\t-f format\n");
+    printf("\t-n output image number\n");
     printf("Format: 1 MJPEG 2 YUYV 3 H264\n");
     exit(0);
 }
 
-void init_configure() {
+static void init_configure() {
     if (gc.dev_name == NULL) {
         gc.dev_name = DEFAULT_DEVICE;
     }
@@ -326,6 +330,9 @@ void init_configure() {
     if (gc.fmt == 0) {
         gc.fmt = V4L2_PIX_FMT_YUYV;
     }
+    if (gc.frame_count == 0) {
+        gc.frame_count = DEFAULT_FRAME_COUNT;
+    }
 }
 
 int main(int argc, char **argv)
@@ -334,15 +341,18 @@ int main(int argc, char **argv)
 
     ZAP(gc);
 
-    while ((opt = getopt(argc, argv, "d:w:h:f:")) != -1) {
+    while ((opt = getopt(argc, argv, "p:w:h:f:n:")) != -1) {
         switch(opt){
-            case 'd':
+            case 'p':
                 gc.dev_name = optarg;
             case 'w':
                 gc.width = atoi(optarg);
                 break;
             case 'h':
                 gc.height = atoi(optarg);
+                break;
+            case 'n':
+                gc.frame_count = atoi(optarg);
                 break;
             case 'f':
                 switch (*optarg) {
