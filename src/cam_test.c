@@ -1,25 +1,6 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-#include <fcntl.h>              /* low-level i/o */
-#include <unistd.h>
-#include <errno.h>
-#include <malloc.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/time.h>
-#include <sys/mman.h>
-#include <sys/ioctl.h>
-#include <asm/types.h>          /* for videodev2.h */
-#include <linux/videodev2.h>
-#include <time.h>
-
 #include "cam_test.h"
 
-static struct configure gc; 
-
-static int read_frame(int count)
+static int read_frame(struct camera_config *conf, int count)
 {
     struct v4l2_buffer buf;
     struct timeval tv1, tv2;
@@ -30,7 +11,7 @@ static int read_frame(int count)
 
     //Count the time of get one frame
     gettimeofday(&tv1, NULL);
-    if(-1 == xioctl(gc.fd, VIDIOC_DQBUF, &buf))
+    if(-1 == xioctl(conf->fd, VIDIOC_DQBUF, &buf))
     {
         switch(errno)
         {
@@ -49,57 +30,32 @@ static int read_frame(int count)
             tv2.tv_sec - tv1.tv_sec - ((tv2.tv_usec < tv1.tv_usec)? 1 : 0),
             (tv2.tv_usec - tv1.tv_usec)/1000 + ((tv2.tv_usec < tv1.tv_usec)? 1000 : 0));
 
-    assert(buf.index < gc.buffer_count);
+    assert(buf.index < conf->bufq.count);
+    conf->bufq.current = buf.index;
 
-    char name[20] = { 0 };
-#ifdef _ANDROID_
-    sprintf(name, "/data/%d.output", count);
-#else
-    sprintf(name, "./image/%d.output", count);
-#endif
-    FILE *fp = fopen(name, "wb");
-    if (fp == NULL) {
-        errno_exit("Create file");
-    }
-    fwrite(gc.buffers[buf.index].start, gc.buffers[buf.index].length, 1, fp);
-    fclose(fp);
+    save_output(conf, count);
 
-    if(-1 == xioctl(gc.fd, VIDIOC_QBUF, &buf))
+    if(-1 == xioctl(conf->fd, VIDIOC_QBUF, &buf))
         errno_exit("VIDIOC_QBUF");
 
     return 0;
 }
 
-static void start_capturing(void);
-static void stop_capturing(void);
-static void mainloop(void)
-{
-    unsigned int count;
-    start_capturing();
-    count = 0;
-    while(count++ < gc.frame_count)
-    {
-        /* EAGAIN - continue select loop. */
-        while(read_frame(count) == EAGAIN);
-    }
-    stop_capturing();
-}
-
-static void stop_capturing (void)
+static void stop_capturing (struct camera_config *conf)
 {
     enum v4l2_buf_type type;
 
     type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    if(-1 == xioctl(gc.fd, VIDIOC_STREAMOFF, &type))
+    if(-1 == xioctl(conf->fd, VIDIOC_STREAMOFF, &type))
         errno_exit("VIDIOC_STREAMOFF");
 }
 
-static void start_capturing(void)
+static void start_capturing(struct camera_config *conf)
 {
     unsigned int i;
     enum v4l2_buf_type type;
 
-    for(i = 0; i < gc.buffer_count; i++)
+    for(i = 0; i < conf->bufq.count; i++)
     {
         struct v4l2_buffer buf;
         ZAP(buf);
@@ -107,29 +63,47 @@ static void start_capturing(void)
         buf.memory      = V4L2_MEMORY_MMAP;
         buf.index       = i;
 
-        if(-1 == xioctl(gc.fd, VIDIOC_QBUF, &buf))
+        if(-1 == xioctl(conf->fd, VIDIOC_QBUF, &buf))
             errno_exit("VIDIOC_QBUF");
     }
     type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    if(-1 == xioctl(gc.fd, VIDIOC_STREAMON, &type))
+    if(-1 == xioctl(conf->fd, VIDIOC_STREAMON, &type))
         errno_exit("VIDIOC_STREAMON");
 }
 
-static void close_device(void);
-static void deinit_device(void)
+static void mainloop(struct camera_config *conf)
+{
+    unsigned int count;
+    start_capturing(conf);
+    count = 0;
+    while(count++ < conf->frame_count)
+    {
+        /* EAGAIN - continue select loop. */
+        while(read_frame(conf, count) == EAGAIN);
+    }
+    stop_capturing(conf);
+}
+
+static void close_device(struct camera_config *conf)
+{
+    if(-1 == close(conf->fd)) errno_exit("close");
+    conf->fd = -1;
+}
+
+static void deinit_device(struct camera_config *conf)
 {
     unsigned int i;
 
-    for(i = 0; i < gc.buffer_count; ++i)
-        if(-1 == munmap(gc.buffers[i].start, gc.buffers[i].length))
+    for(i = 0; i < conf->bufq.count; ++i)
+        if(-1 == munmap(conf->bufq.buf[i].addr, conf->bufq.buf[i].size))
             errno_exit("munmap");
-    free(gc.buffers);
-    close_device();
+    close_device(conf);
 }
 
-static void init_mmap(void)
+static void init_mmap(struct camera_config *conf)
 {
     struct v4l2_requestbuffers req;
+    int i;
 
     ZAP(req);
 
@@ -137,69 +111,84 @@ static void init_mmap(void)
     req.type                = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     req.memory              = V4L2_MEMORY_MMAP;
 
-    if(-1 == xioctl(gc.fd, VIDIOC_REQBUFS, &req))
-    {
+    if(-1 == xioctl(conf->fd, VIDIOC_REQBUFS, &req))
         if(EINVAL == errno)
-        {
-            fprintf(stderr, "%s does not support "
-                    "memory mapping\n", gc.dev_name);
-            exit(EXIT_FAILURE);
-        }
-        else
-        {
             errno_exit("VIDIOC_REQBUFS");
-        }
-    }
+
     if(req.count < 2)
     {
-        fprintf(stderr, "Insufficient buffer memory on %s\n",
-                gc.dev_name);
+        fprintf(stderr, "Insufficient buffer memory on %s\n", conf->dev_name);
         exit(EXIT_FAILURE);
     }
-    gc.buffers = calloc(req.count, sizeof(struct buffer));
+    conf->bufq.buf = calloc(req.count, sizeof(struct buffer));
 
-    if(!gc.buffers)
+    if(!conf->bufq.buf)
     {
         fprintf(stderr, "Out of memory\n");
         exit(EXIT_FAILURE);
     }
 
-    for(gc.buffer_count = 0; gc.buffer_count < req.count; gc.buffer_count++)
+    conf->bufq.count = req.count;
+    for(i = 0; i < req.count; i++)
     {
         struct v4l2_buffer buf;
         ZAP(buf);
         buf.type        = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         buf.memory      = V4L2_MEMORY_MMAP;
-        buf.index       = gc.buffer_count;
+        buf.index       = i;
 
-        if(-1 == xioctl(gc.fd, VIDIOC_QUERYBUF, &buf))
+        if(-1 == xioctl(conf->fd, VIDIOC_QUERYBUF, &buf))
             errno_exit("VIDIOC_QUERYBUF");
 
-        gc.buffers[gc.buffer_count].length = buf.length;
-        gc.buffers[gc.buffer_count].start = mmap(NULL /* start anywhere */,
+        conf->bufq.buf[i].size = buf.length;
+        conf->bufq.buf[i].addr = mmap(NULL /* start anywhere */,
                 buf.length,
                 PROT_READ | PROT_WRITE /* required */,
                 MAP_SHARED /* recommended */,
-                gc.fd, buf.m.offset);
+                conf->fd, buf.m.offset);
 
-        if(MAP_FAILED == gc.buffers[gc.buffer_count].start)
+        if(MAP_FAILED == conf->bufq.buf[i].addr)
             errno_exit("mmap");
     }
 }
 
-static void open_device(void);
-static void init_device()
+static void open_device(struct camera_config *conf)
+{
+    struct stat st;
+
+    if(-1 == stat(conf->dev_name, &st))
+    {
+        fprintf(stderr, "Cannot identify '%s': %d, %s\n",
+                conf->dev_name, errno, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    if(!S_ISCHR(st.st_mode))
+    {
+        fprintf(stderr, "%s is not char device\n", conf->dev_name);
+        exit(EXIT_FAILURE);
+    }
+
+    conf->fd = open(conf->dev_name, O_RDWR /* required */ , 0);
+    if(-1 == conf->fd)
+    {
+        fprintf(stderr, "Cannot open '%s': %d, %s\n",
+                conf->dev_name, errno, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+}
+
+static void init_device(struct camera_config *conf)
 {
     struct v4l2_capability cap;
-    struct v4l2_format fmt;
 
-    open_device();
+    open_device(conf);
 
-    if(-1 == xioctl(gc.fd, VIDIOC_QUERYCAP, &cap))
+    if(-1 == xioctl(conf->fd, VIDIOC_QUERYCAP, &cap))
     {
         if(EINVAL == errno)
         {
-            fprintf(stderr, "%s is no V4L2 device\n", gc.dev_name);
+            fprintf(stderr, "%s is not a V4L2 device\n", conf->dev_name);
             exit(EXIT_FAILURE);
         }
         else
@@ -209,69 +198,34 @@ static void init_device()
     }
     if(!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE))
     {
-        fprintf(stderr, "%s is no video capture device\n", gc.dev_name);
+        fprintf(stderr, "%s is no video capture device\n", conf->dev_name);
         exit(EXIT_FAILURE);
     }
     if(!(cap.capabilities & V4L2_CAP_STREAMING))
     {
-        fprintf(stderr, "%s does not support streaming i/o\n", gc.dev_name);
+        fprintf(stderr, "%s does not support streaming i/o\n", conf->dev_name);
         exit(EXIT_FAILURE);
     }
 
-    ZAP(fmt);
-    fmt.type                = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    fmt.fmt.pix.width       = gc.width;
-    fmt.fmt.pix.height      = gc.height;
-    fmt.fmt.pix.pixelformat = gc.fmt;
-    fmt.fmt.pix.field       = V4L2_FIELD_ANY;
+    conf->fmt->type                = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    conf->fmt->fmt.pix.field       = V4L2_FIELD_ANY;
 
-    if(-1 == xioctl(gc.fd, VIDIOC_S_FMT, &fmt)) {
+    if(-1 == xioctl(conf->fd, VIDIOC_S_FMT, conf->fmt)) {
         errno_exit("VIDIOC_S_FMT");
     }
     /* Note VIDIOC_S_FMT may change width and height. */
-    if(-1 == xioctl(gc.fd, VIDIOC_G_FMT, &fmt)) {
+    if(-1 == xioctl(conf->fd, VIDIOC_G_FMT, conf->fmt)) {
         errno_exit("VIDIOC_G_FMT");
     }
-    printf("Output image will be %dx%d\n", fmt.fmt.pix.width, fmt.fmt.pix.height);
-    printf("Output pixelformat will be:%c%c%c%c\n",
-            fmt.fmt.pix.pixelformat & 0xFF,
-            (fmt.fmt.pix.pixelformat >> 8) & 0xFF,
-            (fmt.fmt.pix.pixelformat >> 16) & 0xFF,
-            (fmt.fmt.pix.pixelformat >> 24) & 0xFF);
+    printf("Output image will be %dx%d\n",
+            conf->fmt->fmt.pix.width,
+            conf->fmt->fmt.pix.height);
+    printf("Output pixelformat will be:%s\n",
+            fmt2desc(conf->fmt->fmt.pix.pixelformat));
 
-    init_mmap();
+    init_mmap(conf);
 }
 
-static void close_device(void)
-{
-    if(-1 == close(gc.fd)) errno_exit("close");
-    gc.fd = -1;
-}
-
-static void open_device(void)
-{
-    struct stat st;
-
-    if(-1 == stat(gc.dev_name, &st))
-    {
-        fprintf(stderr, "Cannot identify '%s': %d, %s\n",
-                gc.dev_name, errno, strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-
-    if(!S_ISCHR(st.st_mode))
-    {
-        fprintf(stderr, "%s is not char device\n", gc.dev_name);
-        exit(EXIT_FAILURE);
-    }
-    gc.fd = open(gc.dev_name, O_RDWR /* required */ , 0);
-    if(-1 == gc.fd)
-    {
-        fprintf(stderr, "Cannot open '%s': %d, %s\n",
-                gc.dev_name, errno, strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-}
 
 #if 0
 static void query_format(void)
@@ -307,59 +261,80 @@ static void query_ctrl(void)
 }
 #endif
 
-static void help() {
-    printf("Usage:\n");
-    printf("\t-p device path\n");
-    printf("\t-w width\n\t-h height\n");
-    printf("\t-f format\n");
-    printf("\t-n output image number\n");
-    printf("Format: 1 MJPEG 2 YUYV 3 H264\n");
-    exit(0);
+static struct camera_config *init_camera_config() {
+    struct camera_config * conf = NULL;
+
+    conf = malloc(sizeof(struct camera_config));
+    if (!conf) {
+        return NULL;
+    }
+    ZAP(*conf);
+    conf->fmt = malloc(sizeof(struct v4l2_format));
+    if (!conf->fmt) {
+        free(conf);
+        return NULL;
+    }
+    ZAP(*(conf->fmt));
+
+    conf->dev_name = DEFAULT_DEVICE;
+    conf->fmt->fmt.pix.width = DEFAULT_IMAGE_WIDTH;
+    conf->fmt->fmt.pix.height = DEFAULT_IMAGE_HEIGHT;
+    conf->fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
+
+    conf->frame_count = DEFAULT_FRAME_COUNT;
+
+    return conf;
 }
 
-static void init_configure() {
-    if (gc.dev_name == NULL) {
-        gc.dev_name = DEFAULT_DEVICE;
+static void deinit_camera_config(struct camera_config *conf) {
+    if (conf->bufq.buf) {
+        free(conf->bufq.buf);
     }
-    if (gc.width == 0) {
-        gc.width = DEFAULT_IMAGE_WIDTH;
+    if (conf->fmt) {
+        free(conf->fmt);
     }
-    if (gc.height == 0) {
-        gc.height = DEFAULT_IMAGE_HEIGHT;
-    }
-    if (gc.fmt == 0) {
-        gc.fmt = V4L2_PIX_FMT_YUYV;
-    }
-    if (gc.frame_count == 0) {
-        gc.frame_count = DEFAULT_FRAME_COUNT;
+    if (conf) {
+        free(conf);
     }
 }
 
 int main(int argc, char **argv)
 {
     char opt;
+    struct camera_config *conf = NULL;
 
-    ZAP(gc);
+    conf = init_camera_config();
+    if (!conf) {
+        fprintf(stderr, "Out of memory\n");
+        exit(EXIT_FAILURE);
+    }
 
     while ((opt = getopt(argc, argv, "p:w:h:f:n:")) != -1) {
         switch(opt){
             case 'p':
-                gc.dev_name = optarg;
+                conf->dev_name = optarg;
             case 'w':
-                gc.width = atoi(optarg);
+                conf->fmt->fmt.pix.width = atoi(optarg);
                 break;
             case 'h':
-                gc.height = atoi(optarg);
+                conf->fmt->fmt.pix.height = atoi(optarg);
                 break;
             case 'n':
-                gc.frame_count = atoi(optarg);
+                conf->frame_count = atoi(optarg);
+                if (conf->frame_count <= 0)
+                    conf->frame_count = DEFAULT_FRAME_COUNT;
                 break;
             case 'f':
                 switch (*optarg) {
-                    case '1': gc.fmt = V4L2_PIX_FMT_MJPEG; break;
-                    case '2': gc.fmt = V4L2_PIX_FMT_YUYV; break;
-                    case '3': gc.fmt = V4L2_PIX_FMT_H264; break;
-                    default: gc.fmt = V4L2_PIX_FMT_YUYV;
+                    case '1':
+                        conf->fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_MJPEG;
+                        break;
+                    case '2':
+                        conf->fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_H264;
+                        break;
+                    case '0': /* default, fall through */
+                    default:
+                        conf->fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
                 }
                 break;
             default:
@@ -367,9 +342,10 @@ int main(int argc, char **argv)
         }
     }
 
-    init_configure();
-    init_device();
-    mainloop();
-    deinit_device();
+    init_device(conf);
+    mainloop(conf);
+    deinit_device(conf);
+    deinit_camera_config(conf);
+
     return 0;
 }

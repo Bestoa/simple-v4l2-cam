@@ -1,8 +1,5 @@
 default:
-	-mkdir -p out
-	-mkdir -p image
-	gcc src/*.c -o out/cam_test
+	gcc src/*.c -o cam_test
 clean:
-	-rm -rf out
-	-rm -rf image
+	rm -rf *.YUYV *.MJPG
 
