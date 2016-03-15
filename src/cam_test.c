@@ -70,15 +70,19 @@ static int read_frame(int count)
     return 0;
 }
 
+static void start_capturing(void);
+static void stop_capturing(void);
 static void mainloop(void)
 {
     unsigned int count;
+    start_capturing();
     count = 0;
     while(count++ < FRAME_NUM)
     {
         /* EAGAIN - continue select loop. */
         while(read_frame(count) == EAGAIN);
     }
+    stop_capturing();
 }
 
 static void stop_capturing (void)
@@ -111,6 +115,7 @@ static void start_capturing(void)
         errno_exit("VIDIOC_STREAMON");
 }
 
+static void close_device(void);
 static void deinit_device(void)
 {
     unsigned int i;
@@ -119,6 +124,7 @@ static void deinit_device(void)
         if(-1 == munmap(gc.buffers[i].start, gc.buffers[i].length))
             errno_exit("munmap");
     free(gc.buffers);
+    close_device();
 }
 
 static void init_mmap(void)
@@ -181,10 +187,13 @@ static void init_mmap(void)
     }
 }
 
+static void open_device(void);
 static void init_device()
 {
     struct v4l2_capability cap;
     struct v4l2_format fmt;
+
+    open_device();
 
     if(-1 == xioctl(gc.fd, VIDIOC_QUERYCAP, &cap))
     {
@@ -252,7 +261,7 @@ static void open_device(void)
 
     if(!S_ISCHR(st.st_mode))
     {
-        fprintf(stderr, "%s is no device\n", gc.dev_name);
+        fprintf(stderr, "%s is not char device\n", gc.dev_name);
         exit(EXIT_FAILURE);
     }
     gc.fd = open(gc.dev_name, O_RDWR /* required */ , 0);
@@ -349,14 +358,8 @@ int main(int argc, char **argv)
     }
 
     init_configure();
-    open_device();
-    query_format();
     init_device();
-    start_capturing();
     mainloop();
-    stop_capturing();
     deinit_device();
-    close_device();
-    exit(EXIT_SUCCESS);
     return 0;
 }
