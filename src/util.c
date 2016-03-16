@@ -3,7 +3,7 @@
 #include <errno.h>
 #include <linux/videodev2.h>
 
-#include "cam_test.h"
+#include "tiny_cam.h"
 
 void help() {
     printf("Usage:\n");

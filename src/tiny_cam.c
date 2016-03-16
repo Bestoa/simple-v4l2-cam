@@ -11,7 +11,7 @@
 #include <sys/ioctl.h>
 #include <linux/videodev2.h>
 
-#include "cam_test.h"
+#include "tiny_cam.h"
 
 static int read_frame(struct camera_config *conf, int count)
 {

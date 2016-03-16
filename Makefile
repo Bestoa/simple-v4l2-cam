@@ -1,5 +1,5 @@
 default:
-	gcc src/*.c -o cam_test
+	gcc src/*.c -o tiny_cam
 clean:
 	rm -rf *.YUYV *.MJPG
 
