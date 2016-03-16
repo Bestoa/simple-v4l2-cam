@@ -313,7 +313,7 @@ static void deinit_camera_config(struct camera_config *conf) {
 
 int main(int argc, char **argv)
 {
-    char opt;
+    int opt;
     struct camera_config *conf = NULL;
 
     conf = init_camera_config();
