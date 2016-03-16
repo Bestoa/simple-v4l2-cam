@@ -1,3 +1,16 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>              /* low-level i/o */
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
+#include <assert.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/mman.h>
+#include <sys/ioctl.h>
+#include <linux/videodev2.h>
+
 #include "cam_test.h"
 
 static int read_frame(struct camera_config *conf, int count)

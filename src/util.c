@@ -1,3 +1,8 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <linux/videodev2.h>
+
 #include "cam_test.h"
 
 void help() {
