@@ -30,3 +30,13 @@
 
 # Debug files
 *.dSYM/
+
+# Bestoa add
+CMakeCache.txt
+CMakeFiles/*
+Makefile
+cmake_install.cmake
+*.MJPG
+*.YUYV
+tiny_cam
+
