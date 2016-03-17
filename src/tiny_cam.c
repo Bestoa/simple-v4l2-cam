@@ -199,7 +199,7 @@ static void open_device(struct camera_config *conf)
 
     if(!S_ISCHR(st.st_mode))
     {
-        LOGE(DUMP_ERRNO, "%s is not char device\n", conf->dev_name);
+        LOGE(NO_DUMP_ERRNO, "%s is not char device\n", conf->dev_name);
         exit(EXIT_FAILURE);
     }
 
@@ -219,16 +219,8 @@ static void init_device(struct camera_config *conf)
 
     if(-1 == xioctl(conf->fd, VIDIOC_QUERYCAP, &cap))
     {
-        if(EINVAL == errno)
-        {
-            LOGE(NO_DUMP_ERRNO, "%s is not a V4L2 device\n", conf->dev_name);
-            exit(EXIT_FAILURE);
-        }
-        else
-        {
-            LOGE(DUMP_ERRNO, "query cap failed\n");
-            exit(EXIT_FAILURE);
-        }
+        LOGE(DUMP_ERRNO, "query cap failed\n");
+        exit(EXIT_FAILURE);
     }
     if(!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE))
     {
