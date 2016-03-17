@@ -2,6 +2,7 @@
 #define _CAM_TEST_
 
 #define MAX_BUFFER_NUM (8)
+#define MIN_BUFFER_NUM (2)
 
 #define DEFAULT_FRAME_COUNT   	(3)
 #define DEFAULT_IMAGE_WIDTH	    (1920)
@@ -33,12 +34,6 @@ struct camera_config {
     int                 frame_count;    /* total frame to save */
 };
 
-static inline void errno_exit(const char *s)
-{
-    fprintf(stderr, "%s error %d, %s\n",s, errno, strerror(errno));
-    exit(EXIT_FAILURE);
-}
-
 static inline int xioctl(int fd,int request,void *arg)
 {
     int r;
@@ -46,8 +41,4 @@ static inline int xioctl(int fd,int request,void *arg)
     while(-1 == r && EINTR == errno);
     return r;
 }
-
-void help(void);
-char *fmt2desc(int fmt);
-int save_output(struct camera_config *conf, int count);
 #endif

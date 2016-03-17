@@ -5,7 +5,7 @@
 
 #include "tiny_cam.h"
 
-void help() {
+void help(void) {
     printf("Usage:\n");
     printf("\t-p device path\n");
     printf("\t-w width\n\t-h height\n");
@@ -28,13 +28,9 @@ int save_output(struct camera_config *conf, int count) {
     char name[10] = { 0 };
     FILE *fp = NULL;
 
-#ifdef _ANDROID_
-    sprintf(name, "/data/out_%d.%s", count,
-            fmt2desc(conf->fmt->fmt.pix.pixelformat));
-#else
     sprintf(name, "./out_%d.%s", count,
             fmt2desc(conf->fmt->fmt.pix.pixelformat));
-#endif
+
     fp = fopen(name, "wb");
     if (fp == NULL) {
         return -EIO;
