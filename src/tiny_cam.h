@@ -1,6 +1,8 @@
 #ifndef _CAM_TEST_
 #define _CAM_TEST_
 
+#include <sys/ioctl.h>
+
 #define MAX_BUFFER_NUM (8)
 #define MIN_BUFFER_NUM (2)
 
