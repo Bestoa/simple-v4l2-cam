@@ -11,7 +11,7 @@
 #include <sys/ioctl.h>
 #include <linux/videodev2.h>
 
-#include "tiny_cam.h"
+#include "camera.h"
 #include "util.h"
 #include "log.h"
 
