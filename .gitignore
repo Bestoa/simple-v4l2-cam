@@ -38,5 +38,3 @@ Makefile
 cmake_install.cmake
 *.MJPG
 *.YUYV
-tiny_cam
-
