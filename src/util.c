@@ -11,7 +11,7 @@ void help(void) {
     printf("\t-w width\n\t-h height\n");
     printf("\t-f format\n");
     printf("\t-n output image number\n");
-    printf("Format: 1 MJPEG 2 YUYV 3 H264\n");
+    printf("Format: 0 YUYV 1 MJPEG 2 H264\n");
     exit(0);
 }
 

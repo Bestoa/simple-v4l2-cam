@@ -15,7 +15,7 @@ void set_log_level(int l)
     log_level = l;
 }
 
-void __log(int dump_errno, int level, const char *msg, ...)
+void __camera_log(int dump_errno, int level, const char *msg, ...)
 {
     va_list ap;
     FILE *fp;

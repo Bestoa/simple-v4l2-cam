@@ -13,6 +13,11 @@
 
 #define ZAP(x) memset (&(x), 0, sizeof (x))
 
+enum {
+    FRAMEUSAGE_SAVE = 1,
+    FRAMEUSAGE_DISPLAY,
+};
+
 struct buffer {
     void        *addr;
     size_t      size;
@@ -27,13 +32,13 @@ struct buffer_queue {
 struct camera_config {
 
     char                *dev_name;
+    int                 gfx_mode;
     int                 fd;
+    int                 frame_count;    /* total frame to save */
 
     struct v4l2_format  *fmt;
-
     struct buffer_queue bufq;
-
-    int                 frame_count;    /* total frame to save */
+    struct window       *window;
 };
 
 static inline int xioctl(int fd,int request,void *arg)

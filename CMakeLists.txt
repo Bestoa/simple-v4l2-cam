@@ -1,4 +1,6 @@
 cmake_minimum_required (VERSION 2.8)
 project (TinyCamera)
 aux_source_directory(src SRCS)
+include_directories("/usr/include/SDL2/")
 add_executable(tiny_camera ${SRCS})
+target_link_libraries(tiny_camera SDL2.so)

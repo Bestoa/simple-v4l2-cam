@@ -12,10 +12,11 @@
 #include <linux/videodev2.h>
 
 #include "camera.h"
+#include "window.h"
 #include "util.h"
 #include "log.h"
 
-static int read_frame(struct camera_config *conf, int count)
+static int read_frame(struct camera_config *conf, int count, int usage)
 {
     struct v4l2_buffer buf;
     struct timeval tv1, tv2;
@@ -49,7 +50,11 @@ static int read_frame(struct camera_config *conf, int count)
     assert(buf.index < conf->bufq.count);
     conf->bufq.current = buf.index;
 
-    save_output(conf, count);
+    if (usage & FRAMEUSAGE_SAVE) {
+        save_output(conf, count);
+    } else if (usage & FRAMEUSAGE_DISPLAY) {
+        window_update_frame(conf->window, conf->bufq.buf[conf->bufq.current].addr, conf->bufq.buf[conf->bufq.current].size);
+    }
 
     if(-1 == xioctl(conf->fd, VIDIOC_QBUF, &buf)) {
         LOGE(DUMP_ERRNO, "queue buffer failed\n");
@@ -95,7 +100,7 @@ static void start_capturing(struct camera_config *conf)
     }
 }
 
-static void mainloop(struct camera_config *conf)
+static void mainloop_noui(struct camera_config *conf)
 {
     unsigned int count;
     start_capturing(conf);
@@ -103,7 +108,16 @@ static void mainloop(struct camera_config *conf)
     while(count++ < conf->frame_count)
     {
         /* EAGAIN - continue select loop. */
-        while(read_frame(conf, count) == EAGAIN);
+        while(read_frame(conf, count, FRAMEUSAGE_SAVE) == EAGAIN);
+    }
+    stop_capturing(conf);
+}
+
+static void mainloop_gui(struct camera_config *conf)
+{
+    start_capturing(conf);
+    while (1) {
+        while(read_frame(conf, 0, FRAMEUSAGE_DISPLAY) == EAGAIN);
     }
     stop_capturing(conf);
 }
@@ -336,10 +350,14 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    while ((opt = getopt(argc, argv, "p:w:h:f:n:")) != -1) {
+    while ((opt = getopt(argc, argv, "gp:w:h:f:n:")) != -1) {
         switch(opt){
+            case 'g':
+                conf->gfx_mode = 1;
+                break;
             case 'p':
                 conf->dev_name = optarg;
+                break;
             case 'w':
                 conf->fmt->fmt.pix.width = atoi(optarg);
                 break;
@@ -369,8 +387,18 @@ int main(int argc, char **argv)
         }
     }
 
+    if (conf->gfx_mode) {
+        conf->fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
+    }
+
     init_device(conf);
-    mainloop(conf);
+    if (!conf->gfx_mode) {
+        mainloop_noui(conf);
+    } else {
+        conf->window = window_create(conf->fmt->fmt.pix.width, conf->fmt->fmt.pix.height);
+        mainloop_gui(conf);
+        window_destory(conf->window);
+    }
     deinit_device(conf);
     deinit_camera_config(conf);
 
