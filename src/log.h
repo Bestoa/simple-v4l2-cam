@@ -15,7 +15,7 @@ enum {
 void __camera_log(int, int, const char *, ...);
 
 #define LOGE(dump_errno, msg, ...) do {\
-    __camera_log(dump_errno, ERROR, msg, ##__VA_ARGS__);\
+    __camera_log(dump_errno, ERROR, "(%s):(%d): "msg, __func__, __LINE__, ##__VA_ARGS__);\
 }while(0)
 
 #define LOGI(msg, ...) do {\

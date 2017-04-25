@@ -27,10 +27,11 @@ void __camera_log(int dump_errno, int level, const char *msg, ...)
         fp = stdout;
     }
 
-    if (dump_errno) {
-        fprintf(fp, "%s. ", strerror(errno));
-    }
     va_start(ap, msg);
     vfprintf(fp, msg, ap);
     va_end(ap);
+
+    if (dump_errno) {
+        fprintf(fp, "Error: %s.\n", strerror(errno));
+    }
 }
