@@ -32,6 +32,8 @@
 *.dSYM/
 
 # Bestoa add
+tiny_camera
+tags
 CMakeCache.txt
 CMakeFiles/*
 Makefile
