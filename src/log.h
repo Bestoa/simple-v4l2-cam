@@ -1,6 +1,11 @@
 #ifndef _LOG_
 #define _LOG_
 
+#include <stdio.h>
+#include <errno.h>
+#include <stdarg.h>
+#include <string.h>
+
 enum {
     LOG_LEVEL_START,
     DEBUG,

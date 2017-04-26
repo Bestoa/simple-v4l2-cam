@@ -1,25 +1,15 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <fcntl.h>              /* low-level i/o */
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
-#include <assert.h>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/mman.h>
-#include <sys/ioctl.h>
-#include <linux/videodev2.h>
-
 #include "camera.h"
 #include "window.h"
 #include "util.h"
 #include "log.h"
 
-static int read_frame(struct camera_config *conf, int count, int usage)
+static int read_frame(struct v4l2_camera *cam, int count, int usage)
 {
     struct v4l2_buffer buf;
     struct timeval tv1, tv2;
+    void * addr;
+    size_t len;
+    int ret;
 
     ZAP(buf);
     buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -27,7 +17,7 @@ static int read_frame(struct camera_config *conf, int count, int usage)
 
     //Count the time of get one frame
     gettimeofday(&tv1, NULL);
-    if(-1 == xioctl(conf->fd, VIDIOC_DQBUF, &buf))
+    if(-1 == xioctl(cam->fd, VIDIOC_DQBUF, &buf))
     {
         switch(errno)
         {
@@ -38,7 +28,7 @@ static int read_frame(struct camera_config *conf, int count, int usage)
                 /* fall through */
             default:
                 LOGE(DUMP_ERRNO, "dequeue buffer failed\n");
-                exit(EXIT_FAILURE);
+                return SHOULD_STOP;
         }
     }
     gettimeofday(&tv2, NULL);
@@ -47,40 +37,36 @@ static int read_frame(struct camera_config *conf, int count, int usage)
             tv2.tv_sec - tv1.tv_sec - ((tv2.tv_usec < tv1.tv_usec)? 1 : 0),
             (tv2.tv_usec - tv1.tv_usec)/1000 + ((tv2.tv_usec < tv1.tv_usec)? 1000 : 0));
 
-    assert(buf.index < conf->bufq.count);
-    conf->bufq.current = buf.index;
+    assert(buf.index < cam->bufq.count);
+
+    addr = cam->bufq.buf[buf.index].addr;
+    len = cam->bufq.buf[buf.index].size;
+
+    if (usage & FRAMEUSAGE_DISPLAY) {
+        ret = window_update_frame(cam->window, addr, len);
+    }
+    if (ret == SHOULD_STOP)
+        return SHOULD_STOP;
 
     if (usage & FRAMEUSAGE_SAVE) {
-        save_output(conf, count);
-    } else if (usage & FRAMEUSAGE_DISPLAY) {
-        window_update_frame(conf->window, conf->bufq.buf[conf->bufq.current].addr, conf->bufq.buf[conf->bufq.current].size);
+        if (save_output(addr, len, count, fmt2desc(cam->fmt->fmt.pix.pixelformat)))
+            return SHOULD_STOP;
     }
 
-    if(-1 == xioctl(conf->fd, VIDIOC_QBUF, &buf)) {
+    if(-1 == xioctl(cam->fd, VIDIOC_QBUF, &buf)) {
         LOGE(DUMP_ERRNO, "queue buffer failed\n");
-        exit(EXIT_FAILURE);
+        return SHOULD_STOP;
     }
 
     return 0;
 }
 
-static void stop_capturing (struct camera_config *conf)
-{
-    enum v4l2_buf_type type;
-
-    type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    if(-1 == xioctl(conf->fd, VIDIOC_STREAMOFF, &type)) {
-        LOGE(DUMP_ERRNO, "stream off failed\n");
-        exit(EXIT_FAILURE);
-    }
-}
-
-static void start_capturing(struct camera_config *conf)
+static int start_capturing(struct v4l2_camera *cam)
 {
     unsigned int i;
     enum v4l2_buf_type type;
 
-    for(i = 0; i < conf->bufq.count; i++)
+    for(i = 0; i < cam->bufq.count; i++)
     {
         struct v4l2_buffer buf;
         ZAP(buf);
@@ -88,62 +74,60 @@ static void start_capturing(struct camera_config *conf)
         buf.memory      = V4L2_MEMORY_MMAP;
         buf.index       = i;
 
-        if(-1 == xioctl(conf->fd, VIDIOC_QBUF, &buf)) {
+        if(-1 == xioctl(cam->fd, VIDIOC_QBUF, &buf)) {
             LOGE(DUMP_ERRNO, "queue buffer failed\n");
-            exit(EXIT_FAILURE);
+            return -1;
         }
     }
     type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    if(-1 == xioctl(conf->fd, VIDIOC_STREAMON, &type)) {
+    if(-1 == xioctl(cam->fd, VIDIOC_STREAMON, &type)) {
         LOGE(DUMP_ERRNO, "stream on failed\n");
-        exit(EXIT_FAILURE);
+        return -1;
+    }
+    return 0;
+}
+
+static void stop_capturing (struct v4l2_camera *cam)
+{
+    enum v4l2_buf_type type;
+
+    type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    if(-1 == xioctl(cam->fd, VIDIOC_STREAMOFF, &type)) {
+        LOGE(DUMP_ERRNO, "stream off failed\n");
     }
 }
 
-static void mainloop_noui(struct camera_config *conf)
+
+static void mainloop_noui(struct v4l2_camera *cam)
 {
     unsigned int count;
-    start_capturing(conf);
+    int ret;
+    if (start_capturing(cam))
+        return;
     count = 0;
-    while(count++ < conf->frame_count)
+    while(count++ < cam->frame_count)
     {
         /* EAGAIN - continue select loop. */
-        while(read_frame(conf, count, FRAMEUSAGE_SAVE) == EAGAIN);
+        while((ret = read_frame(cam, count, FRAMEUSAGE_SAVE)) == EAGAIN);
+        if (ret == SHOULD_STOP)
+            break;
     }
-    stop_capturing(conf);
+    stop_capturing(cam);
 }
 
-static void mainloop_gui(struct camera_config *conf)
+static void mainloop_gui(struct v4l2_camera *cam)
 {
-    start_capturing(conf);
+    int ret;
+    start_capturing(cam);
     while (1) {
-        while(read_frame(conf, 0, FRAMEUSAGE_DISPLAY) == EAGAIN);
+        while((ret = read_frame(cam, 0, FRAMEUSAGE_DISPLAY)) == EAGAIN);
+        if (ret == SHOULD_STOP)
+            break;
     }
-    stop_capturing(conf);
+    stop_capturing(cam);
 }
 
-static void close_device(struct camera_config *conf)
-{
-    if(-1 == close(conf->fd)) {
-        LOGE(DUMP_ERRNO, "close device failed\n");
-        exit(EXIT_FAILURE);
-    }
-    conf->fd = -1;
-}
-
-static void deinit_device(struct camera_config *conf)
-{
-    unsigned int i;
-
-    for(i = 0; i < conf->bufq.count; ++i)
-        if(-1 == munmap(conf->bufq.buf[i].addr, conf->bufq.buf[i].size)) {
-            LOGE(DUMP_ERRNO, "munmap failed\n");
-            exit(EXIT_FAILURE);
-        }
-    close_device(conf);
-}
-
-static void init_mmap(struct camera_config *conf)
+static int map_buffer(struct v4l2_camera *cam)
 {
     struct v4l2_requestbuffers req;
     int i;
@@ -154,26 +138,25 @@ static void init_mmap(struct camera_config *conf)
     req.type                = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     req.memory              = V4L2_MEMORY_MMAP;
 
-    if(-1 == xioctl(conf->fd, VIDIOC_REQBUFS, &req))
-        if(EINVAL == errno) {
-            LOGE(DUMP_ERRNO, "requery buffer failed\n");
-            exit(EXIT_FAILURE);
-        }
+    if(-1 == xioctl(cam->fd, VIDIOC_REQBUFS, &req)) {
+        LOGE(DUMP_ERRNO, "requery buffer failed\n");
+        return -1;
+    }
 
     if(req.count < MIN_BUFFER_NUM)
     {
-        LOGE(NO_DUMP_ERRNO, "Insufficient buffer memory on %s\n", conf->dev_name);
-        exit(EXIT_FAILURE);
+        LOGE(NO_DUMP_ERRNO, "Insufficient buffer memory on %s\n", cam->dev_name);
+        return -1;
     }
-    conf->bufq.buf = calloc(req.count, sizeof(struct buffer));
+    cam->bufq.buf = calloc(req.count, sizeof(struct buffer));
 
-    if(!conf->bufq.buf)
+    if(!cam->bufq.buf)
     {
         LOGE(NO_DUMP_ERRNO, "Out of memory\n");
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
-    conf->bufq.count = req.count;
+    cam->bufq.count = req.count;
     for(i = 0; i < req.count; i++)
     {
         struct v4l2_buffer buf;
@@ -182,90 +165,120 @@ static void init_mmap(struct camera_config *conf)
         buf.memory      = V4L2_MEMORY_MMAP;
         buf.index       = i;
 
-        if(-1 == xioctl(conf->fd, VIDIOC_QUERYBUF, &buf)) {
+        if(-1 == xioctl(cam->fd, VIDIOC_QUERYBUF, &buf)) {
             LOGE(DUMP_ERRNO, "query buffer failed\n");
             exit(EXIT_FAILURE);
         }
 
-        conf->bufq.buf[i].size = buf.length;
-        conf->bufq.buf[i].addr = mmap(NULL /* start anywhere */,
+        cam->bufq.buf[i].size = buf.length;
+        cam->bufq.buf[i].addr = mmap(NULL /* start anywhere */,
                 buf.length,
                 PROT_READ | PROT_WRITE /* required */,
                 MAP_SHARED /* recommended */,
-                conf->fd, buf.m.offset);
+                cam->fd, buf.m.offset);
 
-        if(MAP_FAILED == conf->bufq.buf[i].addr) {
+        if(MAP_FAILED == cam->bufq.buf[i].addr) {
             LOGE(DUMP_ERRNO, "mmap failed\n");
-            exit(EXIT_FAILURE);
+            goto out_unmap_buffer;
         }
     }
+    return 0;
+out_unmap_buffer:
+    while(--i >= 0) {
+        munmap(cam->bufq.buf[i].addr, cam->bufq.buf[i].size);
+    }
+out_free_buffer:
+    free(cam->bufq.buf);
+    return -1;
 }
 
-static void open_device(struct camera_config *conf)
+static void unmap_buffer(struct v4l2_camera *cam)
+{
+    unsigned int i;
+    for(i = 0; i < cam->bufq.count; ++i)
+        munmap(cam->bufq.buf[i].addr, cam->bufq.buf[i].size);
+}
+
+static int open_device(struct v4l2_camera *cam)
 {
     struct stat st;
 
-    if(-1 == stat(conf->dev_name, &st))
+    if(-1 == stat(cam->dev_name, &st))
     {
-        LOGE(DUMP_ERRNO, "Cannot identify '%s'\n", conf->dev_name);
-        exit(EXIT_FAILURE);
+        LOGE(DUMP_ERRNO, "Cannot identify '%s'\n", cam->dev_name);
+        return -1;
     }
 
     if(!S_ISCHR(st.st_mode))
     {
-        LOGE(NO_DUMP_ERRNO, "%s is not char device\n", conf->dev_name);
-        exit(EXIT_FAILURE);
+        LOGE(NO_DUMP_ERRNO, "%s is not char device\n", cam->dev_name);
+        return -1;
     }
 
-    conf->fd = open(conf->dev_name, O_RDWR /* required */ , 0);
-    if(-1 == conf->fd)
+    cam->fd = open(cam->dev_name, O_RDWR /* required */ , 0);
+    if(-1 == cam->fd)
     {
-        LOGE(DUMP_ERRNO, "Cannot open '%s'\n", conf->dev_name);
-        exit(EXIT_FAILURE);
+        LOGE(DUMP_ERRNO, "Cannot open '%s'\n", cam->dev_name);
+        return -1;
     }
+    return 0;
 }
 
-static void init_device(struct camera_config *conf)
+static void close_device(struct v4l2_camera *cam)
+{
+    if(-1 == close(cam->fd)) {
+        LOGE(DUMP_ERRNO, "close device failed\n");
+    }
+    cam->fd = -1;
+}
+
+static int init_device(struct v4l2_camera *cam)
 {
     struct v4l2_capability cap;
 
-    open_device(conf);
+    if (open_device(cam))
+        return -1;
 
-    if(-1 == xioctl(conf->fd, VIDIOC_QUERYCAP, &cap))
+    if(-1 == xioctl(cam->fd, VIDIOC_QUERYCAP, &cap))
     {
         LOGE(DUMP_ERRNO, "query cap failed\n");
-        exit(EXIT_FAILURE);
+        goto out_close;
     }
     if(!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE))
     {
-        LOGE(NO_DUMP_ERRNO, "%s is no video capture device\n", conf->dev_name);
-        exit(EXIT_FAILURE);
+        LOGE(NO_DUMP_ERRNO, "%s is no video capture device\n", cam->dev_name);
+        goto out_close;
     }
     if(!(cap.capabilities & V4L2_CAP_STREAMING))
     {
-        LOGE(NO_DUMP_ERRNO, "%s does not support streaming i/o\n", conf->dev_name);
-        exit(EXIT_FAILURE);
+        LOGE(NO_DUMP_ERRNO, "%s does not support streaming i/o\n", cam->dev_name);
+        goto out_close;
     }
 
-    conf->fmt->type                = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    conf->fmt->fmt.pix.field       = V4L2_FIELD_ANY;
-
-    if(-1 == xioctl(conf->fd, VIDIOC_S_FMT, conf->fmt)) {
+    if(-1 == xioctl(cam->fd, VIDIOC_S_FMT, cam->fmt)) {
         LOGE(DUMP_ERRNO, "set format failed\n");
-        exit(EXIT_FAILURE);
+        goto out_close;
     }
     /* Note VIDIOC_S_FMT may change width and height. */
-    if(-1 == xioctl(conf->fd, VIDIOC_G_FMT, conf->fmt)) {
-        LOGE(DUMP_ERRNO, "get format failed\n");
-        exit(EXIT_FAILURE);
-    }
     LOGI("Output image will be %dx%d\n",
-            conf->fmt->fmt.pix.width,
-            conf->fmt->fmt.pix.height);
+            cam->fmt->fmt.pix.width,
+            cam->fmt->fmt.pix.height);
     LOGI("Output pixelformat will be:%s\n",
-            fmt2desc(conf->fmt->fmt.pix.pixelformat));
+            fmt2desc(cam->fmt->fmt.pix.pixelformat));
 
-    init_mmap(conf);
+    if (map_buffer(cam))
+        goto out_close;
+
+    return 0;
+
+out_close:
+    close_device(cam);
+    return -1;
+}
+
+static void deinit_device(struct v4l2_camera *cam)
+{
+    close_device(cam);
 }
 
 
@@ -302,50 +315,53 @@ static void query_ctrl(void)
 }
 #endif
 
-static struct camera_config *init_camera_config() {
-    struct camera_config * conf = NULL;
+static struct v4l2_camera *alloc_v4l2_camera() {
+    struct v4l2_camera * cam = NULL;
 
-    conf = malloc(sizeof(struct camera_config));
-    if (!conf) {
+    cam = malloc(sizeof(struct v4l2_camera));
+    if (!cam) {
         return NULL;
     }
-    ZAP(*conf);
-    conf->fmt = malloc(sizeof(struct v4l2_format));
-    if (!conf->fmt) {
-        free(conf);
+    ZAP(*cam);
+    cam->fmt = malloc(sizeof(struct v4l2_format));
+    if (!cam->fmt) {
+        free(cam);
         return NULL;
     }
-    ZAP(*(conf->fmt));
+    ZAP(*(cam->fmt));
 
-    conf->dev_name = DEFAULT_DEVICE;
-    conf->fmt->fmt.pix.width = DEFAULT_IMAGE_WIDTH;
-    conf->fmt->fmt.pix.height = DEFAULT_IMAGE_HEIGHT;
-    conf->fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
+    cam->dev_name = DEFAULT_DEVICE;
 
-    conf->frame_count = DEFAULT_FRAME_COUNT;
+    cam->fmt->type                  = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    cam->fmt->fmt.pix.width         = DEFAULT_IMAGE_WIDTH;
+    cam->fmt->fmt.pix.height        = DEFAULT_IMAGE_HEIGHT;
+    cam->fmt->fmt.pix.pixelformat   = V4L2_PIX_FMT_YUYV;
+    cam->fmt->fmt.pix.field         = V4L2_FIELD_ANY;
 
-    return conf;
+    cam->frame_count = DEFAULT_FRAME_COUNT;
+
+    return cam;
 }
 
-static void deinit_camera_config(struct camera_config *conf) {
-    if (conf->bufq.buf) {
-        free(conf->bufq.buf);
+static void free_v4l2_camera(struct v4l2_camera *cam) {
+    if (cam->bufq.buf) {
+        free(cam->bufq.buf);
     }
-    if (conf->fmt) {
-        free(conf->fmt);
+    if (cam->fmt) {
+        free(cam->fmt);
     }
-    if (conf) {
-        free(conf);
+    if (cam) {
+        free(cam);
     }
 }
 
 int main(int argc, char **argv)
 {
     int opt;
-    struct camera_config *conf = NULL;
+    struct v4l2_camera *cam = NULL;
 
-    conf = init_camera_config();
-    if (!conf) {
+    cam = alloc_v4l2_camera();
+    if (!cam) {
         LOGE(NO_DUMP_ERRNO, "Out of memory\n");
         exit(EXIT_FAILURE);
     }
@@ -353,54 +369,59 @@ int main(int argc, char **argv)
     while ((opt = getopt(argc, argv, "gp:w:h:f:n:")) != -1) {
         switch(opt){
             case 'g':
-                conf->gfx_mode = 1;
+                cam->gui_mode = 1;
                 break;
             case 'p':
-                conf->dev_name = optarg;
+                cam->dev_name = optarg;
                 break;
             case 'w':
-                conf->fmt->fmt.pix.width = atoi(optarg);
+                cam->fmt->fmt.pix.width = atoi(optarg);
                 break;
             case 'h':
-                conf->fmt->fmt.pix.height = atoi(optarg);
+                cam->fmt->fmt.pix.height = atoi(optarg);
                 break;
             case 'n':
-                conf->frame_count = atoi(optarg);
-                if (conf->frame_count <= 0)
-                    conf->frame_count = DEFAULT_FRAME_COUNT;
+                cam->frame_count = atoi(optarg);
+                if (cam->frame_count <= 0)
+                    cam->frame_count = DEFAULT_FRAME_COUNT;
                 break;
             case 'f':
                 switch (*optarg) {
                     case '1':
-                        conf->fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_MJPEG;
+                        cam->fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_MJPEG;
                         break;
                     case '2':
-                        conf->fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_H264;
+                        cam->fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_H264;
                         break;
                     case '0': /* default, fall through */
                     default:
-                        conf->fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
+                        cam->fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
                 }
                 break;
             default:
                 help();
+                goto out_free;
         }
     }
 
-    if (conf->gfx_mode) {
-        conf->fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
+    if (cam->gui_mode) {
+        cam->fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
     }
 
-    init_device(conf);
-    if (!conf->gfx_mode) {
-        mainloop_noui(conf);
+    if (init_device(cam))
+        goto out_free;
+
+    if (!cam->gui_mode) {
+        mainloop_noui(cam);
     } else {
-        conf->window = window_create(conf->fmt->fmt.pix.width, conf->fmt->fmt.pix.height);
-        mainloop_gui(conf);
-        window_destory(conf->window);
+        cam->window = window_create(cam->fmt->fmt.pix.width, cam->fmt->fmt.pix.height);
+        mainloop_gui(cam);
+        window_destory(cam->window);
     }
-    deinit_device(conf);
-    deinit_camera_config(conf);
 
+    deinit_device(cam);
+
+out_free:
+    free_v4l2_camera(cam);
     return 0;
 }

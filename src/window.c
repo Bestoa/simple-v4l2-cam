@@ -1,5 +1,6 @@
 #include "window.h"
 #include "log.h"
+#include "camera.h"
 
 struct window * window_create(int width, int height) {
 
@@ -54,36 +55,37 @@ err_return:
     return NULL;
 }
 
-void window_update_frame(struct window *window, void *addr, int size) {
+int window_update_frame(struct window *window, void *addr, size_t size) {
     void *pixels;
     static int i = 0;
     int pitch;
     SDL_Event event;
     if (!window) {
         LOGE(NO_DUMP_ERRNO, "Invaild window\n");
-        return;
+        return SHOULD_STOP;
     }
     if (!addr || size <= 0) {
         LOGE(NO_DUMP_ERRNO, "Invaild address or size\n");
-        return;
+        return SHOULD_STOP;
     }
     if (SDL_LockTexture(window->sdl_texture, NULL, &pixels, &pitch)) {
         LOGE(NO_DUMP_ERRNO, "%s", SDL_GetError());
-        return;
+        return SHOULD_STOP;
     }
     memcpy(pixels, addr, size);
     SDL_UnlockTexture(window->sdl_texture);
     if (SDL_RenderCopy(window->sdl_renderer, window->sdl_texture, NULL, NULL)) {
         LOGE(NO_DUMP_ERRNO, "%s", SDL_GetError());
-        return;
+        return SHOULD_STOP;
     }
     SDL_RenderPresent(window->sdl_renderer);
 
     while (SDL_PollEvent(&event) != 0) {
         if (event.type == SDL_QUIT) {
-            exit(0);
+            return SHOULD_STOP;
         }
     }
+    return 0;
 }
 
 void window_destory(struct window *window) {

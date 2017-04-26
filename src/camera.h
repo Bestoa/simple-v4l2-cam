@@ -1,7 +1,18 @@
-#ifndef _CAM_TEST_
-#define _CAM_TEST_
+#ifndef _TINY_CAMERA_
+#define _TINY_CAMERA_
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>              /* low-level i/o */
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
+#include <assert.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/mman.h>
 #include <sys/ioctl.h>
+#include <linux/videodev2.h>
 
 #define MAX_BUFFER_NUM (8)
 #define MIN_BUFFER_NUM (2)
@@ -12,6 +23,8 @@
 #define DEFAULT_DEVICE          "/dev/video0"
 
 #define ZAP(x) memset (&(x), 0, sizeof (x))
+
+#define SHOULD_STOP (999)
 
 enum {
     FRAMEUSAGE_SAVE = 1,
@@ -26,13 +39,12 @@ struct buffer {
 struct buffer_queue {
     struct buffer       *buf;               /* buffer queue for driver */
     int                 count;              /* total buffer number */
-    int                 current;            /* current buffer index */
 };
 
-struct camera_config {
+struct v4l2_camera {
 
     char                *dev_name;
-    int                 gfx_mode;
+    int                 gui_mode;
     int                 fd;
     int                 frame_count;    /* total frame to save */
 

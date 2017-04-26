@@ -1,6 +1,8 @@
 #ifndef __WINDOW_TC__
 #define __WINDOW_TC__
+
 #include <SDL.h>
+
 struct window {
 	SDL_Window *sdl_window;
     SDL_Renderer *sdl_renderer;
@@ -8,6 +10,6 @@ struct window {
 };
 
 struct window *window_create(int width, int height);
-void window_update_frame(struct window *window, void *addr, int size);
+int window_update_frame(struct window *window, void *addr, size_t size);
 void window_destory(struct window *window);
 #endif
