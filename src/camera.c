@@ -28,7 +28,7 @@ static int read_frame(struct v4l2_camera *cam, int count, int usage)
                 /* fall through */
             default:
                 LOGE(DUMP_ERRNO, "dequeue buffer failed\n");
-                return SHOULD_STOP;
+                return ACTION_STOP;
         }
     }
     gettimeofday(&tv2, NULL);
@@ -45,17 +45,19 @@ static int read_frame(struct v4l2_camera *cam, int count, int usage)
     if (usage & FRAMEUSAGE_DISPLAY) {
         ret = window_update_frame(cam->window, addr, len);
     }
-    if (ret == SHOULD_STOP)
-        return SHOULD_STOP;
+    if (ret == ACTION_STOP)
+        return ACTION_STOP;
+    if (ret == ACTION_SAVE_PICTURE)
+        usage |= FRAMEUSAGE_SAVE;
 
     if (usage & FRAMEUSAGE_SAVE) {
         if (save_output(addr, len, count, fmt2desc(cam->fmt->fmt.pix.pixelformat)))
-            return SHOULD_STOP;
+            return ACTION_STOP;
     }
 
     if(-1 == xioctl(cam->fd, VIDIOC_QBUF, &buf)) {
         LOGE(DUMP_ERRNO, "queue buffer failed\n");
-        return SHOULD_STOP;
+        return ACTION_STOP;
     }
 
     return 0;
@@ -109,7 +111,7 @@ static void mainloop_noui(struct v4l2_camera *cam)
     {
         /* EAGAIN - continue select loop. */
         while((ret = read_frame(cam, count, FRAMEUSAGE_SAVE)) == EAGAIN);
-        if (ret == SHOULD_STOP)
+        if (ret == ACTION_STOP)
             break;
     }
     stop_capturing(cam);
@@ -120,8 +122,8 @@ static void mainloop_gui(struct v4l2_camera *cam)
     int ret;
     start_capturing(cam);
     while (1) {
-        while((ret = read_frame(cam, 0, FRAMEUSAGE_DISPLAY)) == EAGAIN);
-        if (ret == SHOULD_STOP)
+        while((ret = read_frame(cam, -1, FRAMEUSAGE_DISPLAY)) == EAGAIN);
+        if (ret == ACTION_STOP)
             break;
     }
     stop_capturing(cam);

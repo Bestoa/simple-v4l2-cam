@@ -24,11 +24,14 @@
 
 #define ZAP(x) memset (&(x), 0, sizeof (x))
 
-#define SHOULD_STOP (999)
+enum {
+    ACTION_STOP             = 1,
+    ACTION_SAVE_PICTURE     = 2,
+};
 
 enum {
-    FRAMEUSAGE_SAVE = 1,
-    FRAMEUSAGE_DISPLAY,
+    FRAMEUSAGE_SAVE     = 1,
+    FRAMEUSAGE_DISPLAY  = 2,
 };
 
 struct buffer {

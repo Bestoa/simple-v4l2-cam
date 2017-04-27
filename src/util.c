@@ -1,3 +1,5 @@
+#include <time.h>
+
 #include "camera.h"
 #include "util.h"
 #include "log.h"
@@ -22,10 +24,18 @@ char *fmt2desc(int fmt) {
 }
 
 int save_output(void * addr, size_t len, int index, char * fmt) {
-    char name[16] = { 0 };
+    char name[20] = { 0 };
     FILE *fp = NULL;
 
-    sprintf(name, "./out_%d.%s", index, fmt);
+    if (index == -1) {
+        time_t t;
+        struct tm *ptm;
+        time(&t);
+        ptm = localtime(&t);
+        sprintf(name, "./out_%02d%02d%02d%02d%02d.%s", ptm->tm_mon+1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec, fmt);
+    } else {
+        sprintf(name, "./out_%d.%s", index, fmt);
+    }
 
     fp = fopen(name, "wb");
     if (fp == NULL) {

@@ -62,27 +62,33 @@ int window_update_frame(struct window *window, void *addr, size_t size) {
     SDL_Event event;
     if (!window) {
         LOGE(NO_DUMP_ERRNO, "Invaild window\n");
-        return SHOULD_STOP;
+        return ACTION_STOP;
     }
     if (!addr || size <= 0) {
         LOGE(NO_DUMP_ERRNO, "Invaild address or size\n");
-        return SHOULD_STOP;
+        return ACTION_STOP;
     }
     if (SDL_LockTexture(window->sdl_texture, NULL, &pixels, &pitch)) {
         LOGE(NO_DUMP_ERRNO, "%s", SDL_GetError());
-        return SHOULD_STOP;
+        return ACTION_STOP;
     }
     memcpy(pixels, addr, size);
     SDL_UnlockTexture(window->sdl_texture);
     if (SDL_RenderCopy(window->sdl_renderer, window->sdl_texture, NULL, NULL)) {
         LOGE(NO_DUMP_ERRNO, "%s", SDL_GetError());
-        return SHOULD_STOP;
+        return ACTION_STOP;
     }
     SDL_RenderPresent(window->sdl_renderer);
 
     while (SDL_PollEvent(&event) != 0) {
         if (event.type == SDL_QUIT) {
-            return SHOULD_STOP;
+            return ACTION_STOP;
+        }
+        if (event.type == SDL_KEYUP) {
+            if (event.key.keysym.scancode == SDL_SCANCODE_S) {
+                LOGD("Save current frame\n");
+                return ACTION_SAVE_PICTURE;
+            }
         }
     }
     return 0;
