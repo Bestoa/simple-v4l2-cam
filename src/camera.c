@@ -68,6 +68,8 @@ static int start_capturing(struct v4l2_camera *cam)
     unsigned int i;
     enum v4l2_buf_type type;
 
+    LOGI("Stream on\n");
+
     for(i = 0; i < cam->bufq.count; i++)
     {
         struct v4l2_buffer buf;
@@ -92,6 +94,8 @@ static int start_capturing(struct v4l2_camera *cam)
 static void stop_capturing (struct v4l2_camera *cam)
 {
     enum v4l2_buf_type type;
+
+    LOGI("Strem off\n");
 
     type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     if(-1 == xioctl(cam->fd, VIDIOC_STREAMOFF, &type)) {
@@ -134,6 +138,8 @@ static int map_buffer(struct v4l2_camera *cam)
     struct v4l2_requestbuffers req;
     int i;
 
+    LOGI("Alloc and map buffer\n");
+
     ZAP(req);
 
     req.count               = MAX_BUFFER_NUM;
@@ -144,7 +150,7 @@ static int map_buffer(struct v4l2_camera *cam)
         LOGE(DUMP_ERRNO, "requery buffer failed\n");
         return -1;
     }
-
+    LOGI("Buffer count: %d\n", req.count);
     if(req.count < MIN_BUFFER_NUM)
     {
         LOGE(NO_DUMP_ERRNO, "Insufficient buffer memory on %s\n", cam->dev_name);
@@ -197,6 +203,7 @@ out_free_buffer:
 static void unmap_buffer(struct v4l2_camera *cam)
 {
     unsigned int i;
+    LOGI("Unmap buffer\n");
     for(i = 0; i < cam->bufq.count; ++i)
         munmap(cam->bufq.buf[i].addr, cam->bufq.buf[i].size);
 }
@@ -204,6 +211,8 @@ static void unmap_buffer(struct v4l2_camera *cam)
 static int open_device(struct v4l2_camera *cam)
 {
     struct stat st;
+
+    LOGI("Open device %s\n", cam->dev_name);
 
     if(-1 == stat(cam->dev_name, &st))
     {
@@ -228,20 +237,22 @@ static int open_device(struct v4l2_camera *cam)
 
 static void close_device(struct v4l2_camera *cam)
 {
+    LOGI("Close device\n");
     if(-1 == close(cam->fd)) {
         LOGE(DUMP_ERRNO, "close device failed\n");
     }
     cam->fd = -1;
 }
 
-static void dump_v4l2_cap(struct v4l2_capability cap) {
-    LOGI("Dump capability:\n");
-    LOGI("\tdriver:         %s\n", cap.driver);
-    LOGI("\tcard:           %s\n", cap.card);
-    LOGI("\tbus info:       %s\n", cap.bus_info);
-    LOGI("\tversion:        %u.%u.%u\n", (cap.version >> 16) & 0xFF, (cap.version >> 8) & 0xFF, cap.version & 0xFF);
-    LOGI("\tcapability list:\n");
-#define DUMP_CAP(x) LOGI("\t\t" #x ": %d\n", !!(x & cap. capabilities))
+static void dump_v4l2_cap(struct v4l2_capability cap)
+{
+    LOGD("Dump capability:\n");
+    LOGD("\tdriver:         %s\n", cap.driver);
+    LOGD("\tcard:           %s\n", cap.card);
+    LOGD("\tbus info:       %s\n", cap.bus_info);
+    LOGD("\tversion:        %u.%u.%u\n", (cap.version >> 16) & 0xFF, (cap.version >> 8) & 0xFF, cap.version & 0xFF);
+    LOGD("\tcapability list:\n");
+#define DUMP_CAP(x) do { if (x & cap. capabilities) LOGD("\t\t"#x"\n"); } while (0)
         DUMP_CAP(V4L2_CAP_VIDEO_CAPTURE);
         DUMP_CAP(V4L2_CAP_VIDEO_CAPTURE_MPLANE);
         DUMP_CAP(V4L2_CAP_VIDEO_OUTPUT);
@@ -273,7 +284,7 @@ static void dump_v4l2_cap(struct v4l2_capability cap) {
 
 static void dump_output_fmt(struct v4l2_format fmt)
 {
-    LOGI("Dump foramt:\n");
+    LOGI("Output foramt:\n");
     LOGI("\twidth:          %d\n", fmt.fmt.pix.width);
     LOGI("\theight:         %d\n", fmt.fmt.pix.height);
     LOGI("\tpix format      %s\n", fmt2desc(fmt.fmt.pix.pixelformat));
@@ -307,6 +318,8 @@ static int init_device(struct v4l2_camera *cam)
 
     dump_v4l2_cap(cap);
 
+    LOGI("Set format\n");
+
     if(-1 == xioctl(cam->fd, VIDIOC_S_FMT, cam->fmt)) {
         LOGE(DUMP_ERRNO, "set format failed\n");
         goto out_close;
@@ -327,6 +340,7 @@ out_close:
 
 static void deinit_device(struct v4l2_camera *cam)
 {
+    unmap_buffer(cam);
     close_device(cam);
 }
 
@@ -364,7 +378,8 @@ static void query_ctrl(void)
 }
 #endif
 
-static struct v4l2_camera *alloc_v4l2_camera() {
+static struct v4l2_camera *alloc_v4l2_camera()
+{
     struct v4l2_camera * cam = NULL;
 
     cam = malloc(sizeof(struct v4l2_camera));
@@ -392,7 +407,8 @@ static struct v4l2_camera *alloc_v4l2_camera() {
     return cam;
 }
 
-static void free_v4l2_camera(struct v4l2_camera *cam) {
+static void free_v4l2_camera(struct v4l2_camera *cam)
+{
     if (cam->bufq.buf) {
         free(cam->bufq.buf);
     }
@@ -415,24 +431,34 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    while ((opt = getopt(argc, argv, "gp:w:h:f:n:")) != -1) {
+    LOGI("Parsing command line args:\n");
+    while ((opt = getopt(argc, argv, "vgp:w:h:f:n:")) != -1) {
         switch(opt){
+            case 'v':
+                LOGI("Verbose log\n");
+                set_log_level(DEBUG);
+                break;
             case 'g':
+                LOGI("Gui mode\n");
                 cam->gui_mode = 1;
                 break;
             case 'p':
                 cam->dev_name = optarg;
+                LOGI("Device path: %s\n", cam->dev_name);
                 break;
             case 'w':
                 cam->fmt->fmt.pix.width = atoi(optarg);
+                LOGI("Width: %d\n", cam->fmt->fmt.pix.width);
                 break;
             case 'h':
                 cam->fmt->fmt.pix.height = atoi(optarg);
+                LOGI("Height: %d\n", cam->fmt->fmt.pix.height);
                 break;
             case 'n':
                 cam->frame_count = atoi(optarg);
                 if (cam->frame_count <= 0)
                     cam->frame_count = DEFAULT_FRAME_COUNT;
+                LOGI("Frame total: %d\n", cam->frame_count);
                 break;
             case 'f':
                 switch (*optarg) {
@@ -446,12 +472,14 @@ int main(int argc, char **argv)
                     default:
                         cam->fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
                 }
+                LOGI("Format: %d\n", cam->fmt->fmt.pix.pixelformat);
                 break;
             default:
                 help();
                 goto out_free;
         }
     }
+    LOGI("Parsing command line args done\n");
 
     if (cam->gui_mode) {
         cam->fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;

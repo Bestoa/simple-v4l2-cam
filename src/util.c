@@ -4,17 +4,20 @@
 #include "util.h"
 #include "log.h"
 
-void help(void) {
-    printf("Usage:\n");
-    printf("\t-g gui mode\n");
-    printf("\t-p device path\n");
-    printf("\t-w width\n\t-h height\n");
-    printf("\t-f format\n");
-    printf("\t-n output image number\n");
-    printf("Format: 0 YUYV 1 MJPEG 2 H264\n");
+void help(void)
+{
+    fprintf(stderr, "Usage:\n");
+    fprintf(stderr, "\t-g gui mode\n");
+    fprintf(stderr, "\t-p device path\n");
+    fprintf(stderr, "\t-w width\n\t-h height\n");
+    fprintf(stderr, "\t-f format\n");
+    fprintf(stderr, "\t-n output image number, noui mode only\n");
+    fprintf(stderr, "\t-v verbose mode\n");
+    fprintf(stderr, "Format: 0 YUYV 1 MJPEG 2 H264\n");
 }
 
-char *fmt2desc(int fmt) {
+char *fmt2desc(int fmt)
+{
     static char desc[5];
     sprintf(desc, "%c%c%c%c%c",
             fmt & 0xFF, (fmt >> 8) & 0xFF,
@@ -23,7 +26,8 @@ char *fmt2desc(int fmt) {
     return desc;
 }
 
-int save_output(void * addr, size_t len, int index, char * fmt) {
+int save_output(void * addr, size_t len, int index, char * fmt)
+{
     char name[20] = { 0 };
     FILE *fp = NULL;
 
@@ -44,5 +48,6 @@ int save_output(void * addr, size_t len, int index, char * fmt) {
     }
     fwrite(addr, len, 1, fp);
     fclose(fp);
+    LOGI("Save output: %s\n", name);
     return 0;
 }

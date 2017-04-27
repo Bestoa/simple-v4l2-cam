@@ -2,9 +2,11 @@
 #include "log.h"
 #include "camera.h"
 
-struct window * window_create(int width, int height) {
-
+struct window * window_create(int width, int height)
+{
     struct window *window = NULL;
+
+    LOGI("Create window\n");
 
     if (width <= 0 || height <= 0) {
         LOGE(NO_DUMP_ERRNO, "Width or height is invaild.\n");
@@ -55,7 +57,8 @@ err_return:
     return NULL;
 }
 
-int window_update_frame(struct window *window, void *addr, size_t size) {
+int window_update_frame(struct window *window, void *addr, size_t size)
+{
     void *pixels;
     static int i = 0;
     int pitch;
@@ -94,7 +97,9 @@ int window_update_frame(struct window *window, void *addr, size_t size) {
     return 0;
 }
 
-void window_destory(struct window *window) {
+void window_destory(struct window *window)
+{
+    LOGI("Destory window\n");
     SDL_DestroyTexture(window->sdl_texture);
     SDL_DestroyRenderer(window->sdl_renderer);
     SDL_DestroyWindow(window->sdl_window);

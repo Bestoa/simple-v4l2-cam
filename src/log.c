@@ -1,6 +1,6 @@
 #include "log.h"
 
-static int log_level = DEBUG;
+static int log_level = INFO;
 
 void set_log_level(int l)
 {
