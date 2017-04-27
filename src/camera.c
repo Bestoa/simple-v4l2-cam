@@ -234,6 +234,54 @@ static void close_device(struct v4l2_camera *cam)
     cam->fd = -1;
 }
 
+static void dump_v4l2_cap(struct v4l2_capability cap) {
+    LOGI("Dump capability:\n");
+    LOGI("\tdriver:         %s\n", cap.driver);
+    LOGI("\tcard:           %s\n", cap.card);
+    LOGI("\tbus info:       %s\n", cap.bus_info);
+    LOGI("\tversion:        %u.%u.%u\n", (cap.version >> 16) & 0xFF, (cap.version >> 8) & 0xFF, cap.version & 0xFF);
+    LOGI("\tcapability list:\n");
+#define DUMP_CAP(x) LOGI("\t\t" #x ": %d\n", !!(x & cap. capabilities))
+        DUMP_CAP(V4L2_CAP_VIDEO_CAPTURE);
+        DUMP_CAP(V4L2_CAP_VIDEO_CAPTURE_MPLANE);
+        DUMP_CAP(V4L2_CAP_VIDEO_OUTPUT);
+        DUMP_CAP(V4L2_CAP_VIDEO_OUTPUT_MPLANE);
+        DUMP_CAP(V4L2_CAP_VIDEO_M2M);
+        DUMP_CAP(V4L2_CAP_VIDEO_M2M_MPLANE);
+        DUMP_CAP(V4L2_CAP_VIDEO_OVERLAY);
+        DUMP_CAP(V4L2_CAP_VBI_CAPTURE);
+        DUMP_CAP(V4L2_CAP_VBI_OUTPUT);
+        DUMP_CAP(V4L2_CAP_SLICED_VBI_CAPTURE);
+        DUMP_CAP(V4L2_CAP_SLICED_VBI_OUTPUT);
+        DUMP_CAP(V4L2_CAP_RDS_CAPTURE);
+        DUMP_CAP(V4L2_CAP_VIDEO_OUTPUT_OVERLAY);
+        DUMP_CAP(V4L2_CAP_HW_FREQ_SEEK);
+        DUMP_CAP(V4L2_CAP_RDS_OUTPUT);
+        DUMP_CAP(V4L2_CAP_TUNER);
+        DUMP_CAP(V4L2_CAP_AUDIO);
+        DUMP_CAP(V4L2_CAP_RADIO);
+        DUMP_CAP(V4L2_CAP_MODULATOR);
+        DUMP_CAP(V4L2_CAP_SDR_CAPTURE);
+        DUMP_CAP(V4L2_CAP_EXT_PIX_FORMAT);
+        DUMP_CAP(V4L2_CAP_SDR_OUTPUT);
+        DUMP_CAP(V4L2_CAP_READWRITE);
+        DUMP_CAP(V4L2_CAP_ASYNCIO);
+        DUMP_CAP(V4L2_CAP_STREAMING);
+        DUMP_CAP(V4L2_CAP_TOUCH);
+#undef DUMP_CAP
+}
+
+static void dump_output_fmt(struct v4l2_format fmt)
+{
+    LOGI("Dump foramt:\n");
+    LOGI("\twidth:          %d\n", fmt.fmt.pix.width);
+    LOGI("\theight:         %d\n", fmt.fmt.pix.height);
+    LOGI("\tpix format      %s\n", fmt2desc(fmt.fmt.pix.pixelformat));
+    LOGI("\tbytesperline    %d\n", fmt.fmt.pix.bytesperline);
+    LOGI("\tsizeimage       %d\n", fmt.fmt.pix.sizeimage);
+    LOGI("\tcolorspace      %d\n", fmt.fmt.pix.colorspace);
+}
+
 static int init_device(struct v4l2_camera *cam)
 {
     struct v4l2_capability cap;
@@ -257,16 +305,15 @@ static int init_device(struct v4l2_camera *cam)
         goto out_close;
     }
 
+    dump_v4l2_cap(cap);
+
     if(-1 == xioctl(cam->fd, VIDIOC_S_FMT, cam->fmt)) {
         LOGE(DUMP_ERRNO, "set format failed\n");
         goto out_close;
     }
+
     /* Note VIDIOC_S_FMT may change width and height. */
-    LOGI("Output image will be %dx%d\n",
-            cam->fmt->fmt.pix.width,
-            cam->fmt->fmt.pix.height);
-    LOGI("Output pixelformat will be:%s\n",
-            fmt2desc(cam->fmt->fmt.pix.pixelformat));
+    dump_output_fmt(*(cam->fmt));
 
     if (map_buffer(cam))
         goto out_close;
