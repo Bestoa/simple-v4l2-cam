@@ -6,7 +6,7 @@
 static int read_frame(struct v4l2_camera *cam, int count, int usage)
 {
     struct v4l2_buffer buf;
-    struct timeval tv1, tv2;
+    struct time_recorder tr;
     void * addr;
     size_t len;
     int ret;
@@ -16,7 +16,7 @@ static int read_frame(struct v4l2_camera *cam, int count, int usage)
     buf.memory = V4L2_MEMORY_MMAP;
 
     //Count the time of get one frame
-    gettimeofday(&tv1, NULL);
+    time_recorder_start(&tr);
     if(-1 == xioctl(cam->fd, VIDIOC_DQBUF, &buf))
     {
         switch(errno)
@@ -31,12 +31,9 @@ static int read_frame(struct v4l2_camera *cam, int count, int usage)
                 return ACTION_STOP;
         }
     }
-    gettimeofday(&tv2, NULL);
+    time_recorder_end(&tr);
 
-    LOGD("Get one frame take %ld.%03lds\n",
-            tv2.tv_sec - tv1.tv_sec - ((tv2.tv_usec < tv1.tv_usec)? 1 : 0),
-            (tv2.tv_usec - tv1.tv_usec)/1000 + ((tv2.tv_usec < tv1.tv_usec)? 1000 : 0));
-
+    time_recorder_print_time(&tr, "Get frame");
     assert(buf.index < cam->bufq.count);
 
     addr = cam->bufq.buf[buf.index].addr;

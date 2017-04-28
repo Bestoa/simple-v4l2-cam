@@ -30,6 +30,7 @@ int save_output(void * addr, size_t len, int index, char * fmt)
 {
     char name[20] = { 0 };
     FILE *fp = NULL;
+    struct time_recorder tr;
 
     if (index == -1) {
         time_t t;
@@ -41,6 +42,7 @@ int save_output(void * addr, size_t len, int index, char * fmt)
         sprintf(name, "./out_%d.%s", index, fmt);
     }
 
+    time_recorder_start(&tr);
     fp = fopen(name, "wb");
     if (fp == NULL) {
         LOGE(DUMP_ERRNO, "Can't open %s\n", name);
@@ -48,6 +50,35 @@ int save_output(void * addr, size_t len, int index, char * fmt)
     }
     fwrite(addr, len, 1, fp);
     fclose(fp);
+    time_recorder_end(&tr);
     LOGI("Save output: %s\n", name);
+    time_recorder_print_time(&tr, "Save image");
     return 0;
+}
+
+void time_recorder_start(struct time_recorder *tr)
+{
+    gettimeofday(&tr->start, NULL);
+    tr->state = TR_START;
+}
+
+void time_recorder_end(struct time_recorder *tr)
+{
+    if (tr->state != TR_START) {
+        LOGE(NO_DUMP_ERRNO, "Time recorder haven't been started");
+        return;
+    }
+    gettimeofday(&tr->end, NULL);
+    tr->state = TR_END;
+}
+
+void time_recorder_print_time(struct time_recorder *tr, const char *msg)
+{
+    if (tr->state != TR_END) {
+        LOGE(NO_DUMP_ERRNO, "Time recorder haven't been stopped");
+        return;
+    }
+    LOGD("%s take %ld.%03lds\n", msg,
+            tr->end.tv_sec - tr->start.tv_sec - ((tr->end.tv_usec < tr->start.tv_usec)? 1 : 0),
+            (tr->end.tv_usec - tr->start.tv_usec)/1000 + ((tr->end.tv_usec < tr->start.tv_usec)? 1000 : 0));
 }
