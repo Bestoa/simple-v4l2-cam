@@ -290,6 +290,57 @@ static void dump_output_fmt(struct v4l2_format fmt)
     LOGI("\tcolorspace      %d\n", fmt.fmt.pix.colorspace);
 }
 
+static void query_support_fmt(struct v4l2_camera *cam)
+{
+    struct v4l2_fmtdesc fmtdesc;
+
+    fmtdesc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    fmtdesc.index = 0;
+
+    LOGD("Query support format:\n");
+    while (xioctl(cam->fd, VIDIOC_ENUM_FMT, &fmtdesc) == 0) {
+        LOGD("Support pixel format[%d]: %s\n", fmtdesc.index, fmtdesc.description);
+        fmtdesc.index++;
+    }
+}
+
+static void enumerate_menu(struct v4l2_camera *cam, struct v4l2_queryctrl queryctrl, int id)
+{
+    struct v4l2_querymenu querymenu;
+    LOGD("\tMenu items:\n");
+
+    ZAP(querymenu);
+    querymenu.id = id;
+    for (querymenu.index = queryctrl.minimum; querymenu.index <= queryctrl.maximum; querymenu.index++) {
+        if (0 == ioctl(cam->fd, VIDIOC_QUERYMENU, &querymenu)) {
+            if (queryctrl.type == V4L2_CTRL_TYPE_MENU)
+                LOGD("\t\t%s\n", querymenu.name);
+            else
+                LOGD("\t\t%lld\n", querymenu.value);
+        }
+    }
+}
+
+static void query_support_control(struct v4l2_camera *cam)
+{
+    struct v4l2_queryctrl queryctrl;
+    ZAP(queryctrl);
+    queryctrl.id = V4L2_CTRL_FLAG_NEXT_CTRL;
+    while (0 == ioctl(cam->fd, VIDIOC_QUERYCTRL, &queryctrl)) {
+        LOGD("Control %s: min %d, max %d, default %d, step %d, flags 0x%x\n",
+                queryctrl.name, queryctrl.minimum, queryctrl.maximum,
+                queryctrl.default_value, queryctrl.step, queryctrl.flags);
+
+        if (queryctrl.type == V4L2_CTRL_TYPE_MENU || queryctrl.type == V4L2_CTRL_TYPE_INTEGER_MENU)
+            enumerate_menu(cam, queryctrl, queryctrl.id);
+
+        queryctrl.id |= V4L2_CTRL_FLAG_NEXT_CTRL;
+    }
+    if (errno != EINVAL) {
+        LOGE(DUMP_ERRNO, "Query control failed\n");
+    }
+}
+
 static int init_device(struct v4l2_camera *cam)
 {
     struct v4l2_capability cap;
@@ -315,8 +366,10 @@ static int init_device(struct v4l2_camera *cam)
 
     dump_v4l2_cap(cap);
 
-    LOGI("Set format\n");
+    query_support_control(cam);
+    query_support_fmt(cam);
 
+    LOGI("Set format\n");
     if(-1 == xioctl(cam->fd, VIDIOC_S_FMT, cam->fmt)) {
         LOGE(DUMP_ERRNO, "set format failed\n");
         goto out_close;
@@ -340,40 +393,6 @@ static void deinit_device(struct v4l2_camera *cam)
     unmap_buffer(cam);
     close_device(cam);
 }
-
-
-#if 0
-static void query_format(void)
-{
-    struct v4l2_fmtdesc fmtdesc;
-    int found = 0;
-
-    fmtdesc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    fmtdesc.index = 0;
-
-    while (xioctl(gc.fd, VIDIOC_ENUM_FMT, &fmtdesc) == 0) {
-        LOGI("Support pixel format[%d]: %s\n",
-                fmtdesc.index, fmtdesc.description);
-        fmtdesc.index++;
-    }
-}
-
-static void query_ctrl(void)
-{
-    struct v4l2_control control;
-    int i = V4L2_CID_BRIGHTNESS;
-    while (i < V4L2_CID_LASTP1) {
-        memset(&control, 0, sizeof(control));
-        control.id = i;
-
-        if (-1 == xioctl (gc.fd, VIDIOC_QUERYCTRL, &control)) {
-        } else {
-            LOGI("Support control action: %d\n", i);
-        }
-        i++;
-    }
-}
-#endif
 
 static struct v4l2_camera *alloc_v4l2_camera()
 {
