@@ -2,6 +2,7 @@
 #include "log.h"
 #include "camera.h"
 #include "util.h"
+#include "demo.h"
 
 struct window * window_create(int width, int height)
 {
@@ -101,7 +102,7 @@ int window_update_frame(struct window *window, void *addr, size_t size)
             }
         }
     }
-    return 0;
+    return CAMERA_SUCCESS;
 }
 
 void window_destory(struct window *window)

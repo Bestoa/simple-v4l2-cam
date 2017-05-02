@@ -17,7 +17,6 @@
 #define MAX_BUFFER_NUM (8)
 #define MIN_BUFFER_NUM (2)
 
-#define DEFAULT_FRAME_COUNT   	(3)
 #define DEFAULT_IMAGE_WIDTH	    (1920)
 #define DEFAULT_IMAGE_HEIGHT    (1280)
 #define DEFAULT_DEVICE          "/dev/video0"
@@ -25,13 +24,8 @@
 #define ZAP(x) memset (&(x), 0, sizeof (x))
 
 enum {
-    ACTION_STOP             = 1,
-    ACTION_SAVE_PICTURE     = 2,
-};
-
-enum {
-    FRAMEUSAGE_SAVE     = 1,
-    FRAMEUSAGE_DISPLAY  = 2,
+    CAMERA_SUCCESS = 0,
+    CAMERA_FAILURE,
 };
 
 struct buffer {
@@ -46,14 +40,13 @@ struct buffer_queue {
 
 struct v4l2_camera {
 
-    char                *dev_name;
-    int                 gui_mode;
-    int                 fd;
-    int                 frame_count;    /* total frame to save */
+    char                    *dev_name;
+    int                     fd;
+    struct v4l2_format      fmt;
+    struct v4l2_capability  cap;
+    struct buffer_queue     bufq;
 
-    struct v4l2_format  *fmt;
-    struct buffer_queue bufq;
-    struct window       *window;
+    void                    *priv;          /* user spec data */
 };
 
 static inline int xioctl(int fd,int request,void *arg)
