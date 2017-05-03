@@ -24,17 +24,22 @@ static int read_frame(struct v4l2_camera *cam, int count, int usage)
         ret = window_update_frame((struct window *)cam->priv, buffer.addr, buffer.size);
     }
     if (ret == ACTION_STOP)
-        return ACTION_STOP;
+        goto out_queue_buffer;
     if (ret == ACTION_SAVE_PICTURE)
         usage |= FRAMEUSAGE_SAVE;
     if (usage & FRAMEUSAGE_SAVE) {
-        if (save_output(buffer.addr, buffer.size, count, fmt2desc(cam->fmt.fmt.pix.pixelformat)))
-            return ACTION_STOP;
+        if (save_output(buffer.addr, buffer.size, count, fmt2desc(cam->fmt.fmt.pix.pixelformat))){
+            ret = ACTION_STOP;
+            goto out_queue_buffer;
+        }
     }
     ret = camera_queue_buffer(cam, &buffer_info);
     if (ret) return ACTION_STOP;
 
     return CAMERA_SUCCESS;
+out_queue_buffer:
+    camera_queue_buffer(cam, &buffer_info);
+    return ret;
 }
 
 static void mainloop_noui(struct v4l2_camera *cam)
@@ -80,7 +85,7 @@ int main(int argc, char **argv)
     }
 
     LOGI("Parsing command line args:\n");
-    while ((opt = getopt(argc, argv, "vgp:w:h:f:n:")) != -1) {
+    while ((opt = getopt(argc, argv, "?vgp:w:h:f:n:")) != -1) {
         switch(opt){
             case 'v':
                 LOGI("Verbose log\n");
@@ -122,6 +127,7 @@ int main(int argc, char **argv)
                 }
                 LOGI("Format: %d\n", cam->fmt.fmt.pix.pixelformat);
                 break;
+            case '?':
             default:
                 help();
                 goto out_free;

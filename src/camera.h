@@ -28,6 +28,16 @@ enum {
     CAMERA_FAILURE,
 };
 
+enum {
+    CAMERA_INIT,
+    CAMERA_OPENED,
+    CAMERA_CONFIGURED,
+    CAMERA_BUFFER_MAPPED,
+    CAMERA_STREAM_ON,
+    CAMERA_BUFFER_LOCKED,
+    CAMERA_STATE_ERROR,
+};
+
 struct buffer {
     void        *addr;
     size_t      size;
@@ -42,6 +52,7 @@ struct v4l2_camera {
 
     char                    *dev_name;
     int                     fd;
+    int                     state;
     struct v4l2_format      fmt;
     struct v4l2_capability  cap;
     struct buffer_queue     bufq;

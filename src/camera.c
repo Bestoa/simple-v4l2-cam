@@ -346,68 +346,147 @@ static void v4l2_free_camera_object(struct v4l2_camera *cam)
 }
 
 //API part
+#define STATE_EQ(x) do { \
+    if (cam->state != (x)) { \
+        LOGE(NO_DUMP_ERRNO, "Can't do %s in %d state\n", __func__, cam->state);\
+        return CAMERA_FAILURE; \
+    }\
+}while(0)
+
+#define STATE_GE(x) do { \
+    if (cam->state < (x) || cam->state == CAMERA_STATE_ERROR) { \
+        LOGE(NO_DUMP_ERRNO, "Can't do %s in %d state\n", __func__, cam->state);\
+        return CAMERA_FAILURE; \
+    }\
+}while(0)
+
+#define CHECK_RET(x) do { \
+    if ((x)) { \
+        LOGE(NO_DUMP_ERRNO, "Set camera state to CAMERA_STATE_ERROR\n");\
+        cam->state = CAMERA_STATE_ERROR; \
+        return CAMERA_FAILURE; \
+    }\
+}while(0)
+
 struct v4l2_camera *camera_create_object()
 {
-    return v4l2_alloc_camera_object();
+    struct v4l2_camera *cam = v4l2_alloc_camera_object();
+    if (cam)
+        cam->state = CAMERA_INIT;
+    return cam;
 }
-void camera_free_object(struct v4l2_camera *cam)
+int camera_free_object(struct v4l2_camera *cam)
 {
+    STATE_EQ(CAMERA_INIT);
     v4l2_free_camera_object(cam);
+    return CAMERA_SUCCESS;
 }
 int camera_dequeue_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buffer_info)
 {
-    return v4l2_dequeue_buffer(cam, buffer_info);
+    int ret;
+    STATE_EQ(CAMERA_STREAM_ON);
+    ret = v4l2_dequeue_buffer(cam, buffer_info);
+    CHECK_RET(ret);
+    cam->state = CAMERA_BUFFER_LOCKED;
+    return ret;
 }
 int camera_queue_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buffer_info)
 {
-    return v4l2_queue_buffer(cam, buffer_info);
+    int ret;
+    STATE_EQ(CAMERA_BUFFER_LOCKED);
+    ret = v4l2_queue_buffer(cam, buffer_info);
+    CHECK_RET(ret);
+    cam->state = CAMERA_STREAM_ON;
+    return ret;
 }
 int camera_start_capturing(struct v4l2_camera *cam)
 {
-    return v4l2_start_capturing(cam);
+    int ret;
+    STATE_EQ(CAMERA_BUFFER_MAPPED);
+    ret = v4l2_start_capturing(cam);
+    CHECK_RET(ret);
+    cam->state = CAMERA_STREAM_ON;
+    return ret;
 }
-void camera_stop_capturing(struct v4l2_camera *cam)
+int camera_stop_capturing(struct v4l2_camera *cam)
 {
+    STATE_EQ(CAMERA_STREAM_ON);
     v4l2_stop_capturing(cam);
+    cam->state = CAMERA_BUFFER_MAPPED;
+    return CAMERA_SUCCESS;
 }
 int camera_get_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buffer_info, struct buffer *buffer)
 {
-    return v4l2_get_buffer(cam, buffer_info, buffer);
+    int ret;
+    STATE_EQ(CAMERA_BUFFER_LOCKED);
+    ret = v4l2_get_buffer(cam, buffer_info, buffer);
+    CHECK_RET(ret);
+    return ret;
 }
 int camera_request_and_map_buffer(struct v4l2_camera *cam)
 {
-    return v4l2_request_and_map_buffer(cam);
+    int ret;
+    STATE_EQ(CAMERA_CONFIGURED);
+    ret = v4l2_request_and_map_buffer(cam);
+    CHECK_RET(ret);
+    cam->state = CAMERA_BUFFER_MAPPED;
+    return ret;
 }
-void camera_return_and_unmap_buffer(struct v4l2_camera *cam)
+int camera_return_and_unmap_buffer(struct v4l2_camera *cam)
 {
-    return v4l2_return_and_unmap_buffer(cam);
+    STATE_EQ(CAMERA_BUFFER_MAPPED);
+    v4l2_return_and_unmap_buffer(cam);
+    cam->state = CAMERA_OPENED;
+    return CAMERA_SUCCESS;
 }
 int camera_open_device(struct v4l2_camera *cam)
 {
-    return v4l2_open_device(cam);
+    int ret;
+    STATE_EQ(CAMERA_INIT);
+    ret = v4l2_open_device(cam);
+    CHECK_RET(ret);
+    cam->state = CAMERA_OPENED;
+    return ret;
 }
-void camera_close_device(struct v4l2_camera *cam)
+int camera_close_device(struct v4l2_camera *cam)
 {
+    STATE_GE(CAMERA_OPENED);
     v4l2_close_device(cam);
+    cam->state = CAMERA_INIT;
+    return CAMERA_SUCCESS;
 }
 int camera_query_cap(struct v4l2_camera *cam)
 {
-    return v4l2_query_cap(cam);
+    int ret;
+    STATE_GE(CAMERA_OPENED);
+    ret = v4l2_query_cap(cam);
+    return ret;
 }
-void camera_query_support_control(struct v4l2_camera *cam)
+int camera_query_support_control(struct v4l2_camera *cam)
 {
+    STATE_GE(CAMERA_OPENED);
     v4l2_query_support_control(cam);
+    return CAMERA_SUCCESS;
 }
-void camera_query_support_format(struct v4l2_camera *cam)
+int camera_query_support_format(struct v4l2_camera *cam)
 {
+    STATE_GE(CAMERA_OPENED);
     v4l2_query_support_format(cam);
+    return CAMERA_SUCCESS;
 }
-void camera_get_output_format(struct v4l2_camera *cam)
+int camera_get_output_format(struct v4l2_camera *cam)
 {
+    STATE_GE(CAMERA_OPENED);
     v4l2_get_output_format(cam);
+    return CAMERA_SUCCESS;
 }
 int camera_set_output_format(struct v4l2_camera *cam)
 {
-    return v4l2_set_output_format(cam);
+    int ret;
+    STATE_EQ(CAMERA_OPENED);
+    ret = v4l2_set_output_format(cam);
+    CHECK_RET(ret);
+    cam->state = CAMERA_CONFIGURED;
+    return ret;
 }
 //API part end
