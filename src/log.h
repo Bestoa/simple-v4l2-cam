@@ -14,8 +14,8 @@ enum {
     LOG_LEVEL_END,
 };
 
-#define DUMP_ERRNO (1)
-#define NO_DUMP_ERRNO (0)
+#define DUMP_ERROR (1)
+#define DUMP_NONE  (0)
 
 void __camera_log(int, int, const char *, ...);
 
@@ -32,4 +32,5 @@ void __camera_log(int, int, const char *, ...);
 }while(0)
 
 void set_log_level(int l);
+int get_log_level();
 #endif

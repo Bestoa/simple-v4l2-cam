@@ -23,42 +23,56 @@
 
 #define ZAP(x) memset (&(x), 0, sizeof (x))
 
-enum {
-    CAMERA_SUCCESS = 0,
-    CAMERA_FAILURE,
+enum camera_return_type {
+    CAMREA_RETURN_SUCCESS = 0,
+    CAMERA_RETURN_FAILURE,
 };
 
-enum {
-    CAMERA_INIT,
-    CAMERA_OPENED,
-    CAMERA_CONFIGURED,
-    CAMERA_BUFFER_MAPPED,
-    CAMERA_STREAM_ON,
-    CAMERA_BUFFER_LOCKED,
-    CAMERA_STATE_ERROR,
+#define CAMERA_STATE_LIST \
+    __CONVERT__(CAMREA_STATE_INIT) \
+    __CONVERT__(CAMREA_STATE_OPENED) \
+    __CONVERT__(CAMREA_STATE_CONFIGURED) \
+    __CONVERT__(CAMREA_STATE_BUFFER_MAPPED) \
+    __CONVERT__(CAMREA_STATE_STREAM_ON) \
+    __CONVERT__(CAMREA_STATE_BUFFER_LOCKED) \
+    __CONVERT__(CAMERA_STATE_ERROR)
+
+enum camera_state_type {
+#define __CONVERT__(x) x,
+    CAMERA_STATE_LIST
+#undef __CONVERT__
 };
 
 struct buffer {
-    void        *addr;
-    size_t      size;
+    void        *addr;                      /* Data start addr */
+    size_t      size;                       /* Data size */
 };
 
 struct buffer_queue {
-    struct buffer       *buf;               /* buffer queue for driver */
-    int                 count;              /* total buffer number */
+    struct buffer       *buf;               /* Array of struct buffer point */
+    int                 count;              /* Total buffer number */
 };
 
 struct v4l2_camera {
 
-    char                    *dev_name;
+    char                    *dev_name;      /* Device name */
     int                     fd;
-    int                     state;
-    struct v4l2_format      fmt;
+    int                     state;          /* Current state */
+    struct v4l2_format      fmt;            /* Output format */
     struct v4l2_capability  cap;
     struct buffer_queue     bufq;
 
     void                    *priv;          /* user spec data */
 };
+
+static inline char * camera_state_to_string(enum camera_state_type type)
+{
+    switch (type) {
+#define __CONVERT__(x) case x: return #x;
+        CAMERA_STATE_LIST
+#undef __CONVERT__
+    };
+}
 
 static inline int xioctl(int fd,int request,void *arg)
 {

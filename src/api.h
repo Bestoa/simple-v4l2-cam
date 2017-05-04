@@ -18,4 +18,6 @@ int camera_query_support_control(struct v4l2_camera *cam);
 int camera_query_support_format(struct v4l2_camera *cam);
 int camera_get_output_format(struct v4l2_camera *cam);
 int camera_set_output_format(struct v4l2_camera *cam);
+int camera_get_control(struct v4l2_camera *cam, struct v4l2_control *ctrl);
+int camera_set_control(struct v4l2_camera *cam, struct v4l2_control *ctrl);
 #endif

@@ -6,10 +6,10 @@
 static int v4l2_queue_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buffer_info)
 {
     if(xioctl(cam->fd, VIDIOC_QBUF, buffer_info)) {
-        LOGE(DUMP_ERRNO, "Queue buffer failed\n");
-        return CAMERA_FAILURE;
+        LOGE(DUMP_ERROR, "Queue buffer failed\n");
+        return CAMERA_RETURN_FAILURE;
     }
-    return CAMERA_SUCCESS;
+    return CAMREA_RETURN_SUCCESS;
 }
 
 static int v4l2_dequeue_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buffer_info)
@@ -27,19 +27,20 @@ static int v4l2_dequeue_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buff
                 /* Could ignore EIO, see spec. */
                 /* fall through */
             default:
-                LOGE(DUMP_ERRNO, "dequeue buffer failed\n");
+                LOGE(DUMP_ERROR, "dequeue buffer failed\n");
                 return -EIO;
         }
     }
-    return CAMERA_SUCCESS;
+    return CAMREA_RETURN_SUCCESS;
 }
 
 static int v4l2_get_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buffer_info, struct buffer *buffer)
 {
+    // Just get the buffer address and size, don't change it directly.
     assert(buffer_info->index < cam->bufq.count);
     buffer->addr = cam->bufq.buf[buffer_info->index].addr;
     buffer->size = cam->bufq.buf[buffer_info->index].size;
-    return CAMERA_SUCCESS;
+    return CAMREA_RETURN_SUCCESS;
 }
 
 static int v4l2_start_capturing(struct v4l2_camera *cam)
@@ -57,14 +58,14 @@ static int v4l2_start_capturing(struct v4l2_camera *cam)
         buffer_info.memory      = V4L2_MEMORY_MMAP;
         buffer_info.index       = i;
         if (v4l2_queue_buffer(cam, &buffer_info))
-            return CAMERA_FAILURE;
+            return CAMERA_RETURN_FAILURE;
     }
     type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     if(xioctl(cam->fd, VIDIOC_STREAMON, &type)) {
-        LOGE(DUMP_ERRNO, "Stream on failed\n");
-        return CAMERA_FAILURE;
+        LOGE(DUMP_ERROR, "Stream on failed\n");
+        return CAMERA_RETURN_FAILURE;
     }
-    return CAMERA_SUCCESS;
+    return CAMREA_RETURN_SUCCESS;
 }
 
 static void v4l2_stop_capturing (struct v4l2_camera *cam)
@@ -74,7 +75,7 @@ static void v4l2_stop_capturing (struct v4l2_camera *cam)
     LOGI("Strem off\n");
     type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     if(xioctl(cam->fd, VIDIOC_STREAMOFF, &type)) {
-        LOGE(DUMP_ERRNO, "Stream off failed\n");
+        LOGE(DUMP_ERROR, "Stream off failed\n");
     }
 }
 
@@ -89,19 +90,19 @@ static int v4l2_request_and_map_buffer(struct v4l2_camera *cam)
     req.type                = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     req.memory              = V4L2_MEMORY_MMAP;
     if(xioctl(cam->fd, VIDIOC_REQBUFS, &req)) {
-        LOGE(DUMP_ERRNO, "Request buffer failed\n");
-        return CAMERA_FAILURE;
+        LOGE(DUMP_ERROR, "Request buffer failed\n");
+        return CAMERA_RETURN_FAILURE;
     }
     LOGI("Buffer count: %d\n", req.count);
     if(req.count < MIN_BUFFER_NUM)
     {
-        LOGE(NO_DUMP_ERRNO, "Insufficient buffer memory on %s\n", cam->dev_name);
-        return CAMERA_FAILURE;
+        LOGE(DUMP_NONE, "Insufficient buffer memory on %s\n", cam->dev_name);
+        return CAMERA_RETURN_FAILURE;
     }
     cam->bufq.buf = calloc(req.count, sizeof(struct buffer));
     if(!cam->bufq.buf)
     {
-        LOGE(NO_DUMP_ERRNO, "Out of memory\n");
+        LOGE(DUMP_NONE, "Out of memory\n");
         goto out_return_buffer;
     }
     cam->bufq.count = req.count;
@@ -113,7 +114,7 @@ static int v4l2_request_and_map_buffer(struct v4l2_camera *cam)
         buffer_info.memory      = V4L2_MEMORY_MMAP;
         buffer_info.index       = i;
         if(xioctl(cam->fd, VIDIOC_QUERYBUF, &buffer_info)) {
-            LOGE(DUMP_ERRNO, "Query [%d] buffer failed\n", i);
+            LOGE(DUMP_ERROR, "Query [%d] buffer failed\n", i);
             goto out_unmap_buffer;
         }
         cam->bufq.buf[i].size = buffer_info.length;
@@ -123,11 +124,11 @@ static int v4l2_request_and_map_buffer(struct v4l2_camera *cam)
                 MAP_SHARED /* recommended */,
                 cam->fd, buffer_info.m.offset);
         if(MAP_FAILED == cam->bufq.buf[i].addr) {
-            LOGE(DUMP_ERRNO, "Mmap failed\n");
+            LOGE(DUMP_ERROR, "Mmap failed\n");
             goto out_unmap_buffer;
         }
     }
-    return CAMERA_SUCCESS;
+    return CAMREA_RETURN_SUCCESS;
 out_unmap_buffer:
     while(--i >= 0) {
         munmap(cam->bufq.buf[i].addr, cam->bufq.buf[i].size);
@@ -137,10 +138,10 @@ out_free_buffer:
 out_return_buffer:
     req.count = 0;
     if(xioctl(cam->fd, VIDIOC_REQBUFS, &req)) {
-        LOGE(DUMP_ERRNO, "Return buffer failed\n");
+        LOGE(DUMP_ERROR, "Return buffer failed\n");
     }
     LOGI("Buffer count: %d\n", req.count);
-    return CAMERA_FAILURE;
+    return CAMERA_RETURN_FAILURE;
 }
 
 static void v4l2_return_and_unmap_buffer(struct v4l2_camera *cam)
@@ -156,7 +157,7 @@ static void v4l2_return_and_unmap_buffer(struct v4l2_camera *cam)
     req.type                = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     req.memory              = V4L2_MEMORY_MMAP;
     if (xioctl(cam->fd, VIDIOC_REQBUFS, &req)) {
-        LOGE(DUMP_ERRNO, "Return buffer failed\n");
+        LOGE(DUMP_ERROR, "Return buffer failed\n");
     }
     LOGI("Buffer count: %d\n", req.count);
     if (cam->bufq.buf) {
@@ -171,28 +172,28 @@ static int v4l2_open_device(struct v4l2_camera *cam)
     LOGI("Open device %s\n", cam->dev_name);
     if(-1 == stat(cam->dev_name, &st))
     {
-        LOGE(DUMP_ERRNO, "Cannot identify '%s'\n", cam->dev_name);
-        return CAMERA_FAILURE;
+        LOGE(DUMP_ERROR, "Cannot identify '%s'\n", cam->dev_name);
+        return CAMERA_RETURN_FAILURE;
     }
     if(!S_ISCHR(st.st_mode))
     {
-        LOGE(NO_DUMP_ERRNO, "%s is not char device\n", cam->dev_name);
-        return CAMERA_FAILURE;
+        LOGE(DUMP_NONE, "%s is not char device\n", cam->dev_name);
+        return CAMERA_RETURN_FAILURE;
     }
     cam->fd = open(cam->dev_name, O_RDWR /* required */ , 0);
     if(-1 == cam->fd)
     {
-        LOGE(DUMP_ERRNO, "Cannot open '%s'\n", cam->dev_name);
-        return CAMERA_FAILURE;
+        LOGE(DUMP_ERROR, "Cannot open '%s'\n", cam->dev_name);
+        return CAMERA_RETURN_FAILURE;
     }
-    return CAMERA_SUCCESS;
+    return CAMREA_RETURN_SUCCESS;
 }
 
 static void v4l2_close_device(struct v4l2_camera *cam)
 {
     LOGI("Close device\n");
     if(-1 == close(cam->fd)) {
-        LOGE(DUMP_ERRNO, "Close device failed\n");
+        LOGE(DUMP_ERROR, "Close device failed\n");
     }
     cam->fd = -1;
 }
@@ -201,8 +202,8 @@ static int v4l2_query_cap(struct v4l2_camera *cam)
 {
     if(xioctl(cam->fd, VIDIOC_QUERYCAP, &cam->cap))
     {
-        LOGE(DUMP_ERRNO, "Query cap failed\n");
-        return CAMERA_FAILURE;
+        LOGE(DUMP_ERROR, "Query cap failed\n");
+        return CAMERA_RETURN_FAILURE;
     }
     LOGD("Dump capability:\n");
     LOGD("\tdriver:         %s\n", cam->cap.driver);
@@ -211,41 +212,41 @@ static int v4l2_query_cap(struct v4l2_camera *cam)
     LOGD("\tversion:        %u.%u.%u\n", (cam->cap.version >> 16) & 0xFF, (cam->cap.version >> 8) & 0xFF, cam->cap.version & 0xFF);
     LOGD("\tcapability list:\n");
 #define DUMP_CAP(x) do { if (x & cam->cap.capabilities) LOGD("\t\t"#x"\n"); } while (0)
-        DUMP_CAP(V4L2_CAP_VIDEO_CAPTURE);
-        DUMP_CAP(V4L2_CAP_VIDEO_CAPTURE_MPLANE);
-        DUMP_CAP(V4L2_CAP_VIDEO_OUTPUT);
-        DUMP_CAP(V4L2_CAP_VIDEO_OUTPUT_MPLANE);
-        DUMP_CAP(V4L2_CAP_VIDEO_M2M);
-        DUMP_CAP(V4L2_CAP_VIDEO_M2M_MPLANE);
-        DUMP_CAP(V4L2_CAP_VIDEO_OVERLAY);
-        DUMP_CAP(V4L2_CAP_VBI_CAPTURE);
-        DUMP_CAP(V4L2_CAP_VBI_OUTPUT);
-        DUMP_CAP(V4L2_CAP_SLICED_VBI_CAPTURE);
-        DUMP_CAP(V4L2_CAP_SLICED_VBI_OUTPUT);
-        DUMP_CAP(V4L2_CAP_RDS_CAPTURE);
-        DUMP_CAP(V4L2_CAP_VIDEO_OUTPUT_OVERLAY);
-        DUMP_CAP(V4L2_CAP_HW_FREQ_SEEK);
-        DUMP_CAP(V4L2_CAP_RDS_OUTPUT);
-        DUMP_CAP(V4L2_CAP_TUNER);
-        DUMP_CAP(V4L2_CAP_AUDIO);
-        DUMP_CAP(V4L2_CAP_RADIO);
-        DUMP_CAP(V4L2_CAP_MODULATOR);
-        DUMP_CAP(V4L2_CAP_SDR_CAPTURE);
-        DUMP_CAP(V4L2_CAP_EXT_PIX_FORMAT);
-        DUMP_CAP(V4L2_CAP_SDR_OUTPUT);
-        DUMP_CAP(V4L2_CAP_READWRITE);
-        DUMP_CAP(V4L2_CAP_ASYNCIO);
-        DUMP_CAP(V4L2_CAP_STREAMING);
-        DUMP_CAP(V4L2_CAP_TOUCH);
+    DUMP_CAP(V4L2_CAP_VIDEO_CAPTURE);
+    DUMP_CAP(V4L2_CAP_VIDEO_CAPTURE_MPLANE);
+    DUMP_CAP(V4L2_CAP_VIDEO_OUTPUT);
+    DUMP_CAP(V4L2_CAP_VIDEO_OUTPUT_MPLANE);
+    DUMP_CAP(V4L2_CAP_VIDEO_M2M);
+    DUMP_CAP(V4L2_CAP_VIDEO_M2M_MPLANE);
+    DUMP_CAP(V4L2_CAP_VIDEO_OVERLAY);
+    DUMP_CAP(V4L2_CAP_VBI_CAPTURE);
+    DUMP_CAP(V4L2_CAP_VBI_OUTPUT);
+    DUMP_CAP(V4L2_CAP_SLICED_VBI_CAPTURE);
+    DUMP_CAP(V4L2_CAP_SLICED_VBI_OUTPUT);
+    DUMP_CAP(V4L2_CAP_RDS_CAPTURE);
+    DUMP_CAP(V4L2_CAP_VIDEO_OUTPUT_OVERLAY);
+    DUMP_CAP(V4L2_CAP_HW_FREQ_SEEK);
+    DUMP_CAP(V4L2_CAP_RDS_OUTPUT);
+    DUMP_CAP(V4L2_CAP_TUNER);
+    DUMP_CAP(V4L2_CAP_AUDIO);
+    DUMP_CAP(V4L2_CAP_RADIO);
+    DUMP_CAP(V4L2_CAP_MODULATOR);
+    DUMP_CAP(V4L2_CAP_SDR_CAPTURE);
+    DUMP_CAP(V4L2_CAP_EXT_PIX_FORMAT);
+    DUMP_CAP(V4L2_CAP_SDR_OUTPUT);
+    DUMP_CAP(V4L2_CAP_READWRITE);
+    DUMP_CAP(V4L2_CAP_ASYNCIO);
+    DUMP_CAP(V4L2_CAP_STREAMING);
+    DUMP_CAP(V4L2_CAP_TOUCH);
 #undef DUMP_CAP
-        return CAMERA_SUCCESS;
+    return CAMREA_RETURN_SUCCESS;
 }
 
 static void v4l2_get_output_format(struct v4l2_camera *cam)
 {
     if (xioctl(cam->fd, VIDIOC_G_FMT, &cam->fmt))
     {
-        LOGE(DUMP_ERRNO, "Get format failed\n");
+        LOGE(DUMP_ERROR, "Get format failed\n");
         return;
     }
     LOGI("Output foramt:\n");
@@ -261,10 +262,10 @@ static int v4l2_set_output_format(struct v4l2_camera *cam)
 {
     LOGI("Set format\n");
     if(xioctl(cam->fd, VIDIOC_S_FMT, &cam->fmt)) {
-        LOGE(DUMP_ERRNO, "set format failed\n");
-        return CAMERA_FAILURE;
+        LOGE(DUMP_ERROR, "set format failed\n");
+        return CAMERA_RETURN_FAILURE;
     }
-    return CAMERA_SUCCESS;
+    return CAMREA_RETURN_SUCCESS;
 }
 
 static void v4l2_query_support_format(struct v4l2_camera *cam)
@@ -280,41 +281,41 @@ static void v4l2_query_support_format(struct v4l2_camera *cam)
     }
 }
 
-static void enumerate_menu(struct v4l2_camera *cam, struct v4l2_queryctrl queryctrl, int id)
+static void enumerate_menu(struct v4l2_camera *cam, struct v4l2_queryctrl ctrl, int id)
 {
-    struct v4l2_querymenu querymenu;
+    struct v4l2_querymenu menu;
 
     LOGD("\tMenu items:\n");
-    ZAP(querymenu);
-    querymenu.id = id;
-    for (querymenu.index = queryctrl.minimum; querymenu.index <= queryctrl.maximum; querymenu.index++) {
-        if (!ioctl(cam->fd, VIDIOC_QUERYMENU, &querymenu)) {
-            if (queryctrl.type == V4L2_CTRL_TYPE_MENU)
-                LOGD("\t\t%s\n", querymenu.name);
+    ZAP(menu);
+    menu.id = id;
+    for (menu.index = ctrl.minimum; menu.index <= ctrl.maximum; menu.index++) {
+        if (!ioctl(cam->fd, VIDIOC_QUERYMENU, &menu)) {
+            LOGD("\t\t[%d]", menu.index);
+            if (ctrl.type == V4L2_CTRL_TYPE_MENU)
+                LOGD("%s\n", menu.name);
             else
-                LOGD("\t\t%lld\n", querymenu.value);
+                LOGD("%lld\n", menu.value);
         }
     }
 }
 
 static void v4l2_query_support_control(struct v4l2_camera *cam)
 {
-    struct v4l2_queryctrl queryctrl;
+    struct v4l2_queryctrl ctrl;
 
-    ZAP(queryctrl);
-    queryctrl.id = V4L2_CTRL_FLAG_NEXT_CTRL;
-    while (!ioctl(cam->fd, VIDIOC_QUERYCTRL, &queryctrl)) {
-        LOGD("Control %s: min %d, max %d, default %d, step %d, flags 0x%x\n",
-                queryctrl.name, queryctrl.minimum, queryctrl.maximum,
-                queryctrl.default_value, queryctrl.step, queryctrl.flags);
+    ZAP(ctrl);
+    ctrl.id = V4L2_CTRL_FLAG_NEXT_CTRL;
+    while (!ioctl(cam->fd, VIDIOC_QUERYCTRL, &ctrl)) {
+        LOGD("[0x%X]Control %s: min %d, max %d, default value %d, step %d, flags 0x%x\n",
+                ctrl.id, ctrl.name, ctrl.minimum, ctrl.maximum,
+                ctrl.default_value, ctrl.step, ctrl.flags);
+        if (ctrl.type == V4L2_CTRL_TYPE_MENU || ctrl.type == V4L2_CTRL_TYPE_INTEGER_MENU)
+            enumerate_menu(cam, ctrl, ctrl.id);
 
-        if (queryctrl.type == V4L2_CTRL_TYPE_MENU || queryctrl.type == V4L2_CTRL_TYPE_INTEGER_MENU)
-            enumerate_menu(cam, queryctrl, queryctrl.id);
-
-        queryctrl.id |= V4L2_CTRL_FLAG_NEXT_CTRL;
+        ctrl.id |= V4L2_CTRL_FLAG_NEXT_CTRL;
     }
     if (errno != EINVAL) {
-        LOGE(DUMP_ERRNO, "Query control failed\n");
+        LOGE(DUMP_ERROR, "Query control failed\n");
     }
 }
 
@@ -345,26 +346,44 @@ static void v4l2_free_camera_object(struct v4l2_camera *cam)
     }
 }
 
+static int v4l2_get_control(struct v4l2_camera *cam, struct v4l2_control *ctrl)
+{
+    if(xioctl(cam->fd,  VIDIOC_G_CTRL, ctrl)) {
+        LOGE(DUMP_ERROR, "Get control failed\n");
+        return CAMERA_RETURN_FAILURE;
+    }
+    return CAMREA_RETURN_SUCCESS;
+}
+
+static int v4l2_set_control(struct v4l2_camera *cam, struct v4l2_control *ctrl)
+{
+    if(xioctl(cam->fd,  VIDIOC_S_CTRL, ctrl)) {
+        LOGE(DUMP_ERROR, "Set control failed\n");
+        return CAMERA_RETURN_FAILURE;
+    }
+    return CAMREA_RETURN_SUCCESS;
+}
+
 //API part
 #define STATE_EQ(x) do { \
     if (cam->state != (x)) { \
-        LOGE(NO_DUMP_ERRNO, "Can't do %s in %d state\n", __func__, cam->state);\
-        return CAMERA_FAILURE; \
+        LOGE(DUMP_NONE, "Can't do %s in %s state\n", __func__, camera_state_to_string(cam->state));\
+        return CAMERA_RETURN_FAILURE; \
     }\
 }while(0)
 
 #define STATE_GE(x) do { \
     if (cam->state < (x) || cam->state == CAMERA_STATE_ERROR) { \
-        LOGE(NO_DUMP_ERRNO, "Can't do %s in %d state\n", __func__, cam->state);\
-        return CAMERA_FAILURE; \
+        LOGE(DUMP_NONE, "Can't do %s in %s state\n", __func__, camera_state_to_string(cam->state));\
+        return CAMERA_RETURN_FAILURE; \
     }\
 }while(0)
 
 #define CHECK_RET(x) do { \
-    if ((x)) { \
-        LOGE(NO_DUMP_ERRNO, "Set camera state to CAMERA_STATE_ERROR\n");\
+    if ((x) != CAMREA_RETURN_SUCCESS) { \
+        LOGE(DUMP_NONE, "Set camera state to CAMERA_STATE_ERROR\n");\
         cam->state = CAMERA_STATE_ERROR; \
-        return CAMERA_FAILURE; \
+        return CAMERA_RETURN_FAILURE; \
     }\
 }while(0)
 
@@ -372,53 +391,52 @@ struct v4l2_camera *camera_create_object()
 {
     struct v4l2_camera *cam = v4l2_alloc_camera_object();
     if (cam)
-        cam->state = CAMERA_INIT;
+        cam->state = CAMREA_STATE_INIT;
     return cam;
 }
 int camera_free_object(struct v4l2_camera *cam)
 {
-    STATE_EQ(CAMERA_INIT);
     v4l2_free_camera_object(cam);
-    return CAMERA_SUCCESS;
+    return CAMREA_RETURN_SUCCESS;
 }
 int camera_dequeue_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buffer_info)
 {
     int ret;
-    STATE_EQ(CAMERA_STREAM_ON);
+    STATE_EQ(CAMREA_STATE_STREAM_ON);
     ret = v4l2_dequeue_buffer(cam, buffer_info);
     CHECK_RET(ret);
-    cam->state = CAMERA_BUFFER_LOCKED;
+    cam->state = CAMREA_STATE_BUFFER_LOCKED;
     return ret;
 }
 int camera_queue_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buffer_info)
 {
     int ret;
-    STATE_EQ(CAMERA_BUFFER_LOCKED);
+    STATE_EQ(CAMREA_STATE_BUFFER_LOCKED);
     ret = v4l2_queue_buffer(cam, buffer_info);
     CHECK_RET(ret);
-    cam->state = CAMERA_STREAM_ON;
+    cam->state = CAMREA_STATE_STREAM_ON;
     return ret;
 }
 int camera_start_capturing(struct v4l2_camera *cam)
 {
     int ret;
-    STATE_EQ(CAMERA_BUFFER_MAPPED);
+    STATE_EQ(CAMREA_STATE_BUFFER_MAPPED);
     ret = v4l2_start_capturing(cam);
     CHECK_RET(ret);
-    cam->state = CAMERA_STREAM_ON;
+    cam->state = CAMREA_STATE_STREAM_ON;
     return ret;
 }
 int camera_stop_capturing(struct v4l2_camera *cam)
 {
-    STATE_EQ(CAMERA_STREAM_ON);
+    STATE_EQ(CAMREA_STATE_STREAM_ON);
     v4l2_stop_capturing(cam);
-    cam->state = CAMERA_BUFFER_MAPPED;
-    return CAMERA_SUCCESS;
+    cam->state = CAMREA_STATE_BUFFER_MAPPED;
+    return CAMREA_RETURN_SUCCESS;
 }
 int camera_get_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buffer_info, struct buffer *buffer)
 {
     int ret;
-    STATE_EQ(CAMERA_BUFFER_LOCKED);
+    STATE_EQ(CAMREA_STATE_BUFFER_LOCKED);
     ret = v4l2_get_buffer(cam, buffer_info, buffer);
     CHECK_RET(ret);
     return ret;
@@ -426,67 +444,81 @@ int camera_get_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buffer_info, 
 int camera_request_and_map_buffer(struct v4l2_camera *cam)
 {
     int ret;
-    STATE_EQ(CAMERA_CONFIGURED);
+    STATE_EQ(CAMREA_STATE_CONFIGURED);
     ret = v4l2_request_and_map_buffer(cam);
     CHECK_RET(ret);
-    cam->state = CAMERA_BUFFER_MAPPED;
+    cam->state = CAMREA_STATE_BUFFER_MAPPED;
     return ret;
 }
 int camera_return_and_unmap_buffer(struct v4l2_camera *cam)
 {
-    STATE_EQ(CAMERA_BUFFER_MAPPED);
+    STATE_EQ(CAMREA_STATE_BUFFER_MAPPED);
     v4l2_return_and_unmap_buffer(cam);
-    cam->state = CAMERA_OPENED;
-    return CAMERA_SUCCESS;
+    cam->state = CAMREA_STATE_OPENED;
+    return CAMREA_RETURN_SUCCESS;
 }
 int camera_open_device(struct v4l2_camera *cam)
 {
     int ret;
-    STATE_EQ(CAMERA_INIT);
+    STATE_EQ(CAMREA_STATE_INIT);
     ret = v4l2_open_device(cam);
     CHECK_RET(ret);
-    cam->state = CAMERA_OPENED;
+    cam->state = CAMREA_STATE_OPENED;
     return ret;
 }
 int camera_close_device(struct v4l2_camera *cam)
 {
-    STATE_GE(CAMERA_OPENED);
+    STATE_GE(CAMREA_STATE_OPENED);
     v4l2_close_device(cam);
-    cam->state = CAMERA_INIT;
-    return CAMERA_SUCCESS;
+    cam->state = CAMREA_STATE_INIT;
+    return CAMREA_RETURN_SUCCESS;
 }
 int camera_query_cap(struct v4l2_camera *cam)
 {
     int ret;
-    STATE_GE(CAMERA_OPENED);
+    STATE_GE(CAMREA_STATE_OPENED);
     ret = v4l2_query_cap(cam);
     return ret;
 }
 int camera_query_support_control(struct v4l2_camera *cam)
 {
-    STATE_GE(CAMERA_OPENED);
+    STATE_GE(CAMREA_STATE_OPENED);
     v4l2_query_support_control(cam);
-    return CAMERA_SUCCESS;
+    return CAMREA_RETURN_SUCCESS;
 }
 int camera_query_support_format(struct v4l2_camera *cam)
 {
-    STATE_GE(CAMERA_OPENED);
+    STATE_GE(CAMREA_STATE_OPENED);
     v4l2_query_support_format(cam);
-    return CAMERA_SUCCESS;
+    return CAMREA_RETURN_SUCCESS;
 }
 int camera_get_output_format(struct v4l2_camera *cam)
 {
-    STATE_GE(CAMERA_OPENED);
+    STATE_GE(CAMREA_STATE_OPENED);
     v4l2_get_output_format(cam);
-    return CAMERA_SUCCESS;
+    return CAMREA_RETURN_SUCCESS;
 }
 int camera_set_output_format(struct v4l2_camera *cam)
 {
     int ret;
-    STATE_EQ(CAMERA_OPENED);
+    STATE_EQ(CAMREA_STATE_OPENED);
     ret = v4l2_set_output_format(cam);
     CHECK_RET(ret);
-    cam->state = CAMERA_CONFIGURED;
+    cam->state = CAMREA_STATE_CONFIGURED;
+    return ret;
+}
+int camera_get_control(struct v4l2_camera *cam, struct v4l2_control *ctrl)
+{
+    int ret;
+    STATE_GE(CAMREA_STATE_OPENED);
+    ret = v4l2_get_control(cam, ctrl);
+    return ret;
+}
+int camera_set_control(struct v4l2_camera *cam, struct v4l2_control *ctrl)
+{
+    int ret;
+    STATE_GE(CAMREA_STATE_OPENED);
+    ret = v4l2_set_control(cam, ctrl);
     return ret;
 }
 //API part end

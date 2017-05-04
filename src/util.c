@@ -45,7 +45,7 @@ int save_output(void * addr, size_t len, int index, char * fmt)
     time_recorder_start(&tr);
     fp = fopen(name, "wb");
     if (fp == NULL) {
-        LOGE(DUMP_ERRNO, "Can't open %s\n", name);
+        LOGE(DUMP_ERROR, "Can't open %s\n", name);
         return -EIO;
     }
     fwrite(addr, len, 1, fp);
@@ -53,7 +53,7 @@ int save_output(void * addr, size_t len, int index, char * fmt)
     time_recorder_end(&tr);
     LOGI("Save output: %s\n", name);
     time_recorder_print_time(&tr, "Save image");
-    return CAMERA_SUCCESS;
+    return CAMREA_RETURN_SUCCESS;
 }
 
 void time_recorder_start(struct time_recorder *tr)
@@ -65,7 +65,7 @@ void time_recorder_start(struct time_recorder *tr)
 void time_recorder_end(struct time_recorder *tr)
 {
     if (tr->state != TR_START) {
-        LOGE(NO_DUMP_ERRNO, "Time recorder haven't been started");
+        LOGE(DUMP_NONE, "Time recorder haven't been started");
         return;
     }
     gettimeofday(&tr->end, NULL);
@@ -75,7 +75,7 @@ void time_recorder_end(struct time_recorder *tr)
 void time_recorder_print_time(struct time_recorder *tr, const char *msg)
 {
     if (tr->state != TR_END) {
-        LOGE(NO_DUMP_ERRNO, "Time recorder haven't been stopped");
+        LOGE(DUMP_NONE, "Time recorder haven't been stopped");
         return;
     }
     LOGD("%s take %ld.%03lds\n", msg,

@@ -5,6 +5,7 @@
 enum {
     ACTION_STOP             = 1,
     ACTION_SAVE_PICTURE     = 2,
+    ACTION_EDIT_CONTROL     = 3,
 };
 
 enum {

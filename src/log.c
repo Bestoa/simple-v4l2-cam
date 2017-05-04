@@ -10,6 +10,11 @@ void set_log_level(int l)
     log_level = l;
 }
 
+int get_log_level()
+{
+    return log_level;
+}
+
 void __camera_log(int dump_errno, int level, const char *msg, ...)
 {
     va_list ap;

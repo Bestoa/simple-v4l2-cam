@@ -23,7 +23,7 @@ static int read_frame(struct v4l2_camera *cam, int count, int usage)
     if (usage & FRAMEUSAGE_DISPLAY) {
         ret = window_update_frame((struct window *)cam->priv, buffer.addr, buffer.size);
     }
-    if (ret == ACTION_STOP)
+    if (ret == ACTION_STOP || ret == ACTION_EDIT_CONTROL)
         goto out_queue_buffer;
     if (ret == ACTION_SAVE_PICTURE)
         usage |= FRAMEUSAGE_SAVE;
@@ -36,7 +36,7 @@ static int read_frame(struct v4l2_camera *cam, int count, int usage)
     ret = camera_queue_buffer(cam, &buffer_info);
     if (ret) return ACTION_STOP;
 
-    return CAMERA_SUCCESS;
+    return CAMREA_RETURN_SUCCESS;
 out_queue_buffer:
     camera_queue_buffer(cam, &buffer_info);
     return ret;
@@ -61,6 +61,22 @@ static void mainloop_noui(struct v4l2_camera *cam)
     camera_stop_capturing(cam);
 }
 
+static void edit_control(struct v4l2_camera *cam)
+{
+    struct v4l2_control ctrl;
+    int cur_level = get_log_level();
+    int c;
+    set_log_level(DEBUG);
+    camera_query_support_control(cam);
+    scanf("%d%x%d", &c, &ctrl.id, &ctrl.value);
+    if (c == 1)
+        camera_set_control(cam, &ctrl);
+    else
+        camera_get_control(cam, &ctrl);
+    LOGI("%d\n", ctrl.value);
+    set_log_level(cur_level);
+}
+
 static void mainloop(struct v4l2_camera *cam)
 {
     int ret;
@@ -69,6 +85,8 @@ static void mainloop(struct v4l2_camera *cam)
         while((ret = read_frame(cam, -1, FRAMEUSAGE_DISPLAY)) == EAGAIN);
         if (ret == ACTION_STOP)
             break;
+        else if (ret == ACTION_EDIT_CONTROL)
+            edit_control(cam);
     }
     camera_stop_capturing(cam);
 }
@@ -80,7 +98,7 @@ int main(int argc, char **argv)
 
     cam = camera_create_object();
     if (!cam) {
-        LOGE(NO_DUMP_ERRNO, "Out of memory\n");
+        LOGE(DUMP_NONE, "Out of memory\n");
         exit(EXIT_FAILURE);
     }
 
@@ -108,7 +126,7 @@ int main(int argc, char **argv)
                 LOGI("Height: %d\n", cam->fmt.fmt.pix.height);
                 break;
             case 'n':
-                if ((count = atoi(optarg)) <=0)
+                if ((count = atoi(optarg)) <= 0)
                     count = DEFAULT_FRAME_COUNT;
                 cam->priv = &count;
                 LOGI("Frame total: %d\n", *(int *)cam->priv);
@@ -143,12 +161,12 @@ int main(int argc, char **argv)
         goto out_close;
     if(!(cam->cap.capabilities & V4L2_CAP_VIDEO_CAPTURE))
     {
-        LOGE(NO_DUMP_ERRNO, "%s is no video capture device\n", cam->dev_name);
+        LOGE(DUMP_NONE, "%s is no video capture device\n", cam->dev_name);
         goto out_close;
     }
     if(!(cam->cap.capabilities & V4L2_CAP_STREAMING))
     {
-        LOGE(NO_DUMP_ERRNO, "%s does not support streaming i/o\n", cam->dev_name);
+        LOGE(DUMP_NONE, "%s does not support streaming i/o\n", cam->dev_name);
         goto out_close;
     }
     camera_query_support_control(cam);
@@ -177,5 +195,5 @@ out_close:
     camera_close_device(cam);
 out_free:
     camera_free_object(cam);
-    return CAMERA_SUCCESS;
+    return CAMREA_RETURN_SUCCESS;
 }
