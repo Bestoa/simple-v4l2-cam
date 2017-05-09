@@ -15,30 +15,24 @@ static int read_frame(struct v4l2_camera *cam, int count, int usage)
     //Count the time of get one frame
     time_recorder_start(&tr);
     ret = camera_dequeue_buffer(cam, &buffer_info);
-    if (ret == -EAGAIN) return -EAGAIN;
-    else if (ret) return ACTION_STOP;
+    if (ret != CAMREA_RETURN_SUCCESS)
+        return ret;
     time_recorder_end(&tr);
     time_recorder_print_time(&tr, "Get frame");
     camera_get_buffer(cam, &buffer_info, &buffer);
     if (usage & FRAMEUSAGE_DISPLAY) {
-        ret = window_update_frame((struct window *)cam->priv, buffer.addr, buffer.size, cam->fmt.fmt.pix.pixelformat);
-    }
-    if (ret == ACTION_STOP || ret == ACTION_EDIT_CONTROL)
-        goto out_queue_buffer;
-    if (ret == ACTION_SAVE_PICTURE)
-        usage |= FRAMEUSAGE_SAVE;
-    if (usage & FRAMEUSAGE_SAVE) {
-        if (save_output(buffer.addr, buffer.size, count, fmt2desc(cam->fmt.fmt.pix.pixelformat))){
-            ret = ACTION_STOP;
-            goto out_queue_buffer;
+        if (window_update_frame((struct window *)cam->priv, buffer.addr, buffer.size, cam->fmt.fmt.pix.pixelformat) != CAMREA_RETURN_SUCCESS) {
+            ret = CAMERA_RETURN_FAILURE;
         }
     }
-    ret = camera_queue_buffer(cam, &buffer_info);
-    if (ret) return ACTION_STOP;
-
-    return CAMREA_RETURN_SUCCESS;
-out_queue_buffer:
-    camera_queue_buffer(cam, &buffer_info);
+    if (usage & FRAMEUSAGE_SAVE) {
+        if (save_output(buffer.addr, buffer.size, count, fmt2desc(cam->fmt.fmt.pix.pixelformat)) != CAMREA_RETURN_SUCCESS) {
+            ret = CAMERA_RETURN_FAILURE;
+        }
+    }
+    if (camera_queue_buffer(cam, &buffer_info) != CAMREA_RETURN_SUCCESS) {
+        ret = CAMERA_RETURN_FAILURE;
+    }
     return ret;
 }
 
@@ -54,8 +48,8 @@ static void mainloop_noui(struct v4l2_camera *cam)
     while(i++ < count)
     {
         /* EAGAIN - continue select loop. */
-        while((ret = read_frame(cam, i, FRAMEUSAGE_SAVE)) == EAGAIN);
-        if (ret == ACTION_STOP)
+        while((ret = read_frame(cam, i, FRAMEUSAGE_SAVE)) == -EAGAIN);
+        if (ret == CAMERA_RETURN_FAILURE)
             break;
     }
     camera_stop_capturing(cam);
@@ -80,13 +74,30 @@ static void edit_control(struct v4l2_camera *cam)
 static void mainloop(struct v4l2_camera *cam)
 {
     int ret;
+    int usage = FRAMEUSAGE_DISPLAY;
+    int action, running = 1;
     camera_start_capturing(cam);
-    while (1) {
-        while((ret = read_frame(cam, -1, FRAMEUSAGE_DISPLAY)) == EAGAIN);
-        if (ret == ACTION_STOP)
+    while (running) {
+        while((ret = read_frame(cam, -1, usage)) == -EAGAIN);
+        if (ret != CAMREA_RETURN_SUCCESS)
             break;
-        else if (ret == ACTION_EDIT_CONTROL)
-            edit_control(cam);
+        action = window_get_event((struct window *)cam->priv);
+        switch (action) {
+            case ACTION_STOP:
+                running = 0;
+                break;
+            case ACTION_SAVE_PICTURE:
+                usage = FRAMEUSAGE_DISPLAY | FRAMEUSAGE_SAVE;
+                break;
+            case ACTION_EDIT_CONTROL:
+                edit_control(cam);
+                break;
+            case ACTION_NONE:
+                //fall through
+            default:
+                usage = FRAMEUSAGE_DISPLAY;
+         }
+
     }
     camera_stop_capturing(cam);
 }

@@ -3,9 +3,10 @@
 
 #define DEFAULT_FRAME_COUNT   	(3)
 enum {
-    ACTION_STOP             = 1,
-    ACTION_SAVE_PICTURE     = 2,
-    ACTION_EDIT_CONTROL     = 3,
+    ACTION_NONE,
+    ACTION_STOP,
+    ACTION_SAVE_PICTURE,
+    ACTION_EDIT_CONTROL,
 };
 
 enum {

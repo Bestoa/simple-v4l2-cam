@@ -131,17 +131,16 @@ out:
 
 int window_update_frame(struct window *window, void *addr, size_t size, int format)
 {
-    SDL_Event event;
-    int ret = CAMREA_RETURN_SUCCESS;
+    int ret;
     struct time_recorder tr;
 
     if (!window) {
         LOGE(DUMP_NONE, "Invaild window\n");
-        return ACTION_STOP;
+        return CAMERA_RETURN_FAILURE;
     }
     if (!addr || size <= 0) {
         LOGE(DUMP_NONE, "Invaild address or size\n");
-        return ACTION_STOP;
+        return CAMERA_RETURN_FAILURE;
     }
 
     time_recorder_start(&tr);
@@ -158,29 +157,29 @@ int window_update_frame(struct window *window, void *addr, size_t size, int form
     time_recorder_end(&tr);
     time_recorder_print_time(&tr, "Display frame");
 
-    if (ret != CAMREA_RETURN_SUCCESS)
-        return ACTION_STOP;
+    return ret;
+}
 
+int window_get_event(struct window * window)
+{
+    SDL_Event event;
     while (SDL_PollEvent(&event) != 0) {
         if (event.type == SDL_QUIT) {
-            ret = ACTION_STOP;
-            goto out;
+            LOGI("Exit.\n");
+            return ACTION_STOP;
         }
         if (event.type == SDL_KEYUP) {
             if (event.key.keysym.scancode == SDL_SCANCODE_S) {
                 LOGD("Save current frame\n");
-                ret = ACTION_SAVE_PICTURE;
-                goto out;
+                return ACTION_SAVE_PICTURE;
             }
             if (event.key.keysym.scancode == SDL_SCANCODE_E) {
                 LOGI("Edit control\n");
-                ret = ACTION_EDIT_CONTROL;
-                goto out;
+                return ACTION_EDIT_CONTROL;
             }
         }
     }
-out:
-    return ret;
+    return ACTION_NONE;
 }
 
 void window_destory(struct window *window)
