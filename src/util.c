@@ -53,7 +53,7 @@ int save_output(void * addr, size_t len, int index, char * fmt)
     time_recorder_end(&tr);
     LOGI("Save output: %s\n", name);
     time_recorder_print_time(&tr, "Save image");
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 }
 
 void time_recorder_start(struct time_recorder *tr)

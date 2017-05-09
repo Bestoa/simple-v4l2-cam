@@ -24,7 +24,7 @@
 #define ZAP(x) memset (&(x), 0, sizeof (x))
 
 enum camera_return_type {
-    CAMREA_RETURN_SUCCESS = 0,
+    CAMERA_RETURN_SUCCESS = 0,
     CAMERA_RETURN_FAILURE,
 };
 

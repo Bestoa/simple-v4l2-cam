@@ -15,22 +15,22 @@ static int read_frame(struct v4l2_camera *cam, int count, int usage)
     //Count the time of get one frame
     time_recorder_start(&tr);
     ret = camera_dequeue_buffer(cam, &buffer_info);
-    if (ret != CAMREA_RETURN_SUCCESS)
+    if (ret != CAMERA_RETURN_SUCCESS)
         return ret;
     time_recorder_end(&tr);
     time_recorder_print_time(&tr, "Get frame");
     camera_get_buffer(cam, &buffer_info, &buffer);
     if (usage & FRAMEUSAGE_DISPLAY) {
-        if (window_update_frame((struct window *)cam->priv, buffer.addr, buffer.size, cam->fmt.fmt.pix.pixelformat) != CAMREA_RETURN_SUCCESS) {
+        if (window_update_frame((struct window *)cam->priv, buffer.addr, buffer.size, cam->fmt.fmt.pix.pixelformat) != CAMERA_RETURN_SUCCESS) {
             ret = CAMERA_RETURN_FAILURE;
         }
     }
     if (usage & FRAMEUSAGE_SAVE) {
-        if (save_output(buffer.addr, buffer.size, count, fmt2desc(cam->fmt.fmt.pix.pixelformat)) != CAMREA_RETURN_SUCCESS) {
+        if (save_output(buffer.addr, buffer.size, count, fmt2desc(cam->fmt.fmt.pix.pixelformat)) != CAMERA_RETURN_SUCCESS) {
             ret = CAMERA_RETURN_FAILURE;
         }
     }
-    if (camera_queue_buffer(cam, &buffer_info) != CAMREA_RETURN_SUCCESS) {
+    if (camera_queue_buffer(cam, &buffer_info) != CAMERA_RETURN_SUCCESS) {
         ret = CAMERA_RETURN_FAILURE;
     }
     return ret;
@@ -79,7 +79,7 @@ static void mainloop(struct v4l2_camera *cam)
     camera_start_capturing(cam);
     while (running) {
         while((ret = read_frame(cam, -1, usage)) == -EAGAIN);
-        if (ret != CAMREA_RETURN_SUCCESS)
+        if (ret != CAMERA_RETURN_SUCCESS)
             break;
         action = window_get_event((struct window *)cam->priv);
         switch (action) {
@@ -203,5 +203,5 @@ out_close:
     camera_close_device(cam);
 out_free:
     camera_free_object(cam);
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 }

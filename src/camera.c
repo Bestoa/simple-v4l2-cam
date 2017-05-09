@@ -9,7 +9,7 @@ static int v4l2_queue_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buffer
         LOGE(DUMP_ERROR, "Queue buffer failed\n");
         return CAMERA_RETURN_FAILURE;
     }
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 }
 
 static int v4l2_dequeue_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buffer_info)
@@ -31,7 +31,7 @@ static int v4l2_dequeue_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buff
                 return -EIO;
         }
     }
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 }
 
 static int v4l2_get_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buffer_info, struct buffer *buffer)
@@ -40,7 +40,7 @@ static int v4l2_get_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buffer_i
     assert(buffer_info->index < cam->bufq.count);
     buffer->addr = cam->bufq.buf[buffer_info->index].addr;
     buffer->size = cam->bufq.buf[buffer_info->index].size;
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 }
 
 static int v4l2_start_capturing(struct v4l2_camera *cam)
@@ -65,7 +65,7 @@ static int v4l2_start_capturing(struct v4l2_camera *cam)
         LOGE(DUMP_ERROR, "Stream on failed\n");
         return CAMERA_RETURN_FAILURE;
     }
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 }
 
 static void v4l2_stop_capturing (struct v4l2_camera *cam)
@@ -128,7 +128,7 @@ static int v4l2_request_and_map_buffer(struct v4l2_camera *cam)
             goto out_unmap_buffer;
         }
     }
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 out_unmap_buffer:
     while(--i >= 0) {
         munmap(cam->bufq.buf[i].addr, cam->bufq.buf[i].size);
@@ -186,7 +186,7 @@ static int v4l2_open_device(struct v4l2_camera *cam)
         LOGE(DUMP_ERROR, "Cannot open '%s'\n", cam->dev_name);
         return CAMERA_RETURN_FAILURE;
     }
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 }
 
 static void v4l2_close_device(struct v4l2_camera *cam)
@@ -239,7 +239,7 @@ static int v4l2_query_cap(struct v4l2_camera *cam)
     DUMP_CAP(V4L2_CAP_STREAMING);
     DUMP_CAP(V4L2_CAP_TOUCH);
 #undef DUMP_CAP
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 }
 
 static void v4l2_get_output_format(struct v4l2_camera *cam)
@@ -265,7 +265,7 @@ static int v4l2_set_output_format(struct v4l2_camera *cam)
         LOGE(DUMP_ERROR, "set format failed\n");
         return CAMERA_RETURN_FAILURE;
     }
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 }
 
 static void v4l2_query_support_format(struct v4l2_camera *cam)
@@ -352,7 +352,7 @@ static int v4l2_get_control(struct v4l2_camera *cam, struct v4l2_control *ctrl)
         LOGE(DUMP_ERROR, "Get control failed\n");
         return CAMERA_RETURN_FAILURE;
     }
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 }
 
 static int v4l2_set_control(struct v4l2_camera *cam, struct v4l2_control *ctrl)
@@ -361,7 +361,7 @@ static int v4l2_set_control(struct v4l2_camera *cam, struct v4l2_control *ctrl)
         LOGE(DUMP_ERROR, "Set control failed\n");
         return CAMERA_RETURN_FAILURE;
     }
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 }
 
 //API part
@@ -380,7 +380,7 @@ static int v4l2_set_control(struct v4l2_camera *cam, struct v4l2_control *ctrl)
 }while(0)
 
 #define CHECK_RET(x) do { \
-    if ((x) != CAMREA_RETURN_SUCCESS) { \
+    if ((x) != CAMERA_RETURN_SUCCESS) { \
         LOGE(DUMP_NONE, "Set camera state to CAMERA_STATE_ERROR\n");\
         cam->state = CAMERA_STATE_ERROR; \
         return CAMERA_RETURN_FAILURE; \
@@ -397,7 +397,7 @@ struct v4l2_camera *camera_create_object()
 int camera_free_object(struct v4l2_camera *cam)
 {
     v4l2_free_camera_object(cam);
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 }
 int camera_dequeue_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buffer_info)
 {
@@ -431,7 +431,7 @@ int camera_stop_capturing(struct v4l2_camera *cam)
     STATE_EQ(CAMREA_STATE_STREAM_ON);
     v4l2_stop_capturing(cam);
     cam->state = CAMREA_STATE_BUFFER_MAPPED;
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 }
 int camera_get_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buffer_info, struct buffer *buffer)
 {
@@ -455,7 +455,7 @@ int camera_return_and_unmap_buffer(struct v4l2_camera *cam)
     STATE_EQ(CAMREA_STATE_BUFFER_MAPPED);
     v4l2_return_and_unmap_buffer(cam);
     cam->state = CAMREA_STATE_OPENED;
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 }
 int camera_open_device(struct v4l2_camera *cam)
 {
@@ -471,7 +471,7 @@ int camera_close_device(struct v4l2_camera *cam)
     STATE_GE(CAMREA_STATE_OPENED);
     v4l2_close_device(cam);
     cam->state = CAMREA_STATE_INIT;
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 }
 int camera_query_cap(struct v4l2_camera *cam)
 {
@@ -484,19 +484,19 @@ int camera_query_support_control(struct v4l2_camera *cam)
 {
     STATE_GE(CAMREA_STATE_OPENED);
     v4l2_query_support_control(cam);
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 }
 int camera_query_support_format(struct v4l2_camera *cam)
 {
     STATE_GE(CAMREA_STATE_OPENED);
     v4l2_query_support_format(cam);
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 }
 int camera_get_output_format(struct v4l2_camera *cam)
 {
     STATE_GE(CAMREA_STATE_OPENED);
     v4l2_get_output_format(cam);
-    return CAMREA_RETURN_SUCCESS;
+    return CAMERA_RETURN_SUCCESS;
 }
 int camera_set_output_format(struct v4l2_camera *cam)
 {

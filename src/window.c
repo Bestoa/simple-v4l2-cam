@@ -59,7 +59,7 @@ err_return:
 static int draw_yuyv(struct window *window, void *addr, size_t size)
 {
     void *pixels;
-    int pitch, ret = CAMREA_RETURN_SUCCESS;
+    int pitch, ret = CAMERA_RETURN_SUCCESS;
     struct SDL_Texture *texture = NULL;
     texture = SDL_CreateTexture(window->sdl_renderer, SDL_PIXELFORMAT_YUY2,
             SDL_TEXTUREACCESS_STREAMING, window->width, window->height);
@@ -87,7 +87,7 @@ out:
 
 static int draw_mjpeg(struct window *window, void *addr, size_t size)
 {
-    int ret = CAMREA_RETURN_SUCCESS;
+    int ret = CAMERA_RETURN_SUCCESS;
     SDL_RWops *rw = NULL;
     SDL_Surface *image = NULL;
     struct SDL_Texture *texture = NULL;
