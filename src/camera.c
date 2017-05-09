@@ -39,7 +39,11 @@ static int v4l2_get_buffer(struct v4l2_camera *cam, struct v4l2_buffer *buffer_i
     // Just get the buffer address and size, don't change it directly.
     assert(buffer_info->index < cam->bufq.count);
     buffer->addr = cam->bufq.buf[buffer_info->index].addr;
-    buffer->size = cam->bufq.buf[buffer_info->index].size;
+    // For compressed format such as MJPEG, it will not use whole buffer.
+    if (buffer_info->bytesused)
+        buffer->size = buffer_info->bytesused;
+    else
+        buffer->size = cam->bufq.buf[buffer_info->index].size;
     return CAMERA_RETURN_SUCCESS;
 }
 
