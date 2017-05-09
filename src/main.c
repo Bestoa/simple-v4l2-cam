@@ -21,7 +21,7 @@ static int read_frame(struct v4l2_camera *cam, int count, int usage)
     time_recorder_print_time(&tr, "Get frame");
     camera_get_buffer(cam, &buffer_info, &buffer);
     if (usage & FRAMEUSAGE_DISPLAY) {
-        ret = window_update_frame((struct window *)cam->priv, buffer.addr, buffer.size);
+        ret = window_update_frame((struct window *)cam->priv, buffer.addr, buffer.size, cam->fmt.fmt.pix.pixelformat);
     }
     if (ret == ACTION_STOP || ret == ACTION_EDIT_CONTROL)
         goto out_queue_buffer;
@@ -152,9 +152,6 @@ int main(int argc, char **argv)
         }
     }
     LOGI("Parsing command line args done\n");
-    if (has_gui) {
-        cam->fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
-    }
     if (camera_open_device(cam))
         goto out_free;
     if (camera_query_cap(cam))

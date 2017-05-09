@@ -3,13 +3,17 @@
 
 #include <SDL.h>
 
+#define WINDOW_DEFAULT_WIDTH    (720)
+#define WINDOW_DEFAULT_HEIGHT   (480)
+
 struct window {
-	SDL_Window *sdl_window;
+    int width;
+    int height;
+    SDL_Window *sdl_window;
     SDL_Renderer *sdl_renderer;
-    SDL_Texture *sdl_texture;
 };
 
 struct window *window_create(int width, int height);
-int window_update_frame(struct window *window, void *addr, size_t size);
+int window_update_frame(struct window *window, void *addr, size_t size, int format);
 void window_destory(struct window *window);
 #endif
