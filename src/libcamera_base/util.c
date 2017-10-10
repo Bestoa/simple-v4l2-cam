@@ -26,33 +26,23 @@ char *fmt2desc(int fmt)
     return desc;
 }
 
-int save_output(void * addr, size_t len, int index, char * fmt)
+int save_buffer(struct buffer buffer, char * ext)
 {
-    char name[20] = { 0 };
+    char name[30] = { 0 };
     FILE *fp = NULL;
     struct time_recorder tr;
-
-    if (index == -1) {
-        time_t t;
-        struct tm *ptm;
-        time(&t);
-        ptm = localtime(&t);
-        sprintf(name, "./out_%02d%02d%02d%02d%02d.%s", ptm->tm_mon+1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec, fmt);
-    } else {
-        sprintf(name, "./out_%d.%s", index, fmt);
-    }
-
     time_recorder_start(&tr);
+    sprintf(name, "image_%d_%d.%s", tr.start.tv_sec, tr.start.tv_usec, ext);
     fp = fopen(name, "wb");
     if (fp == NULL) {
         LOGE(DUMP_ERROR, "Can't open %s\n", name);
         return -EIO;
     }
-    fwrite(addr, len, 1, fp);
+    fwrite(buffer.addr, buffer.size, 1, fp);
     fclose(fp);
     time_recorder_end(&tr);
-    LOGI("Save output: %s\n", name);
-    time_recorder_print_time(&tr, "Save image");
+    LOGI("Save buffer: %s\n", name);
+    time_recorder_print_time(&tr, "Save buffer");
     return CAMERA_RETURN_SUCCESS;
 }
 

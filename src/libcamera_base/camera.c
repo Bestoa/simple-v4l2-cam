@@ -1,5 +1,4 @@
 #include "camera.h"
-#include "window.h"
 #include "util.h"
 #include "log.h"
 

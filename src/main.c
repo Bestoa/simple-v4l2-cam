@@ -26,7 +26,7 @@ static int read_frame(struct v4l2_camera *cam, int count, int usage)
         }
     }
     if (usage & FRAMEUSAGE_SAVE) {
-        if (save_output(buffer.addr, buffer.size, count, fmt2desc(cam->fmt.fmt.pix.pixelformat)) != CAMERA_RETURN_SUCCESS) {
+        if (save_buffer(buffer, fmt2desc(cam->fmt.fmt.pix.pixelformat)) != CAMERA_RETURN_SUCCESS) {
             ret = CAMERA_RETURN_FAILURE;
         }
     }

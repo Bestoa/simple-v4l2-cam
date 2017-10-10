@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include "camera.h"
 
 struct time_recorder {
     struct timeval start;
@@ -18,7 +19,7 @@ enum {
 
 void help(void);
 char *fmt2desc(int fmt);
-int save_output(void * addr, size_t len, int index, char * fmt);
+int save_buffer(struct buffer buffer, char *ext);
 void time_recorder_start(struct time_recorder *tr);
 void time_recorder_end(struct time_recorder *tr);
 void time_recorder_print_time(struct time_recorder *tr, const char *msg);
