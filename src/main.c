@@ -5,7 +5,7 @@
 #include "log.h"
 #include "demo.h"
 
-static int read_frame(struct v4l2_camera *cam, int count, int usage)
+static int read_frame(struct v4l2_camera *cam, int usage)
 {
     struct v4l2_buffer buffer_info;
     struct buffer buffer;
@@ -36,19 +36,15 @@ static int read_frame(struct v4l2_camera *cam, int count, int usage)
     return ret;
 }
 
-static void mainloop_noui(struct v4l2_camera *cam)
+static void mainloop_noui(struct v4l2_camera *cam, int count)
 {
-    int i = 0, ret, count = DEFAULT_FRAME_COUNT;
-    if (cam->priv != NULL)
-    {
-        count = *(int *)cam->priv;
-    }
+    int i = 0, ret;
     if (camera_start_capturing(cam))
         return;
     while(i++ < count)
     {
         /* EAGAIN - continue select loop. */
-        while((ret = read_frame(cam, i, FRAMEUSAGE_SAVE)) == -EAGAIN);
+        while((ret = read_frame(cam, FRAMEUSAGE_SAVE)) == -EAGAIN);
         if (ret == CAMERA_RETURN_FAILURE)
             break;
     }
@@ -78,7 +74,7 @@ static void mainloop(struct v4l2_camera *cam)
     int action, running = 1;
     camera_start_capturing(cam);
     while (running) {
-        while((ret = read_frame(cam, -1, usage)) == -EAGAIN);
+        while((ret = read_frame(cam, usage)) == -EAGAIN);
         if (ret != CAMERA_RETURN_SUCCESS)
             break;
         action = window_get_event((struct window *)cam->priv);
@@ -104,7 +100,7 @@ static void mainloop(struct v4l2_camera *cam)
 
 int main(int argc, char **argv)
 {
-    int opt, has_gui = 0, count;
+    int opt, has_gui = 0, count = DEFAULT_FRAME_COUNT;
     struct v4l2_camera *cam = NULL;
 
     cam = camera_create_object();
@@ -139,8 +135,7 @@ int main(int argc, char **argv)
             case 'n':
                 if ((count = atoi(optarg)) <= 0)
                     count = DEFAULT_FRAME_COUNT;
-                cam->priv = &count;
-                LOGI("Frame total: %d\n", *(int *)cam->priv);
+                LOGI("Frame total: %d\n", count);
                 break;
             case 'f':
                 switch (*optarg) {
@@ -190,7 +185,7 @@ int main(int argc, char **argv)
         goto out_close;
 
     if (!has_gui) {
-        mainloop_noui(cam);
+        mainloop_noui(cam, count);
     } else {
         cam->priv = window_create(cam->fmt.fmt.pix.width, cam->fmt.fmt.pix.height);
         mainloop(cam);
