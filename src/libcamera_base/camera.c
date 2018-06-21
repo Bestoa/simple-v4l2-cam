@@ -245,13 +245,8 @@ static int v4l2_query_cap(struct v4l2_camera *cam)
     return CAMERA_RETURN_SUCCESS;
 }
 
-static void v4l2_get_output_format(struct v4l2_camera *cam)
+static void dump_output_format(struct v4l2_camera *cam)
 {
-    if (xioctl(cam->fd, VIDIOC_G_FMT, &cam->fmt))
-    {
-        LOGE(DUMP_ERROR, "Get format failed\n");
-        return;
-    }
     LOGI("Output foramt:\n");
     LOGI("\twidth:          %d\n", cam->fmt.fmt.pix.width);
     LOGI("\theight:         %d\n", cam->fmt.fmt.pix.height);
@@ -259,6 +254,16 @@ static void v4l2_get_output_format(struct v4l2_camera *cam)
     LOGI("\tbytesperline    %d\n", cam->fmt.fmt.pix.bytesperline);
     LOGI("\tsizeimage       %d\n", cam->fmt.fmt.pix.sizeimage);
     LOGI("\tcolorspace      %d\n", cam->fmt.fmt.pix.colorspace);
+}
+
+static void v4l2_get_output_format(struct v4l2_camera *cam)
+{
+    if (xioctl(cam->fd, VIDIOC_G_FMT, &cam->fmt))
+    {
+        LOGE(DUMP_ERROR, "Get format failed\n");
+        return;
+    }
+    dump_output_format(cam);
 }
 
 static int v4l2_set_output_format(struct v4l2_camera *cam)
@@ -498,7 +503,10 @@ int camera_query_support_format(struct v4l2_camera *cam)
 int camera_get_output_format(struct v4l2_camera *cam)
 {
     STATE_GE(CAMREA_STATE_OPENED);
-    v4l2_get_output_format(cam);
+    if (cam->state == CAMREA_STATE_CONFIGURED)
+        v4l2_get_output_format(cam);
+    else
+        dump_output_format(cam);
     return CAMERA_RETURN_SUCCESS;
 }
 int camera_set_output_format(struct v4l2_camera *cam)
