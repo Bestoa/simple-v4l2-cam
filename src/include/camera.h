@@ -72,6 +72,7 @@ static inline char * camera_state_to_string(enum camera_state_type type)
         CAMERA_STATE_LIST
 #undef __CONVERT__
     };
+    return "CAMERA_STATE_ERROR";
 }
 
 static inline int xioctl(int fd,int request,void *arg)

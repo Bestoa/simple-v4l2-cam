@@ -2,6 +2,8 @@ cmake_minimum_required (VERSION 2.8)
 project (TinyCamera)
 include_directories("/usr/include/SDL2/" "src/include")
 
+SET(CMAKE_C_FLAGS "-Wall -Werror")
+
 aux_source_directory("src/libcamera_base" CAMERA_BASE_LIB_SOURCE)
 add_library("camera_base" SHARED ${CAMERA_BASE_LIB_SOURCE})
 

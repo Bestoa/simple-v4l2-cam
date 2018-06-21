@@ -136,7 +136,6 @@ out_unmap_buffer:
     while(--i >= 0) {
         munmap(cam->bufq.buf[i].addr, cam->bufq.buf[i].size);
     }
-out_free_buffer:
     free(cam->bufq.buf);
 out_return_buffer:
     req.count = 0;

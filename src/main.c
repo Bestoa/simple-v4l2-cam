@@ -38,7 +38,7 @@ static int display_frame(struct v4l2_camera *cam, struct buffer buffer, void * p
 
 static int save_frame(struct v4l2_camera *cam, struct buffer buffer, void * priv_data)
 {
-    (void *)priv_data;
+    (void) priv_data;
     return save_buffer(buffer, fmt2desc(cam->fmt.fmt.pix.pixelformat));
 }
 

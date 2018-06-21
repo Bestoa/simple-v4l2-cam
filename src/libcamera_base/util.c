@@ -18,11 +18,11 @@ void help(void)
 
 char *fmt2desc(int fmt)
 {
-    static char desc[5];
+    static char desc[6];
     sprintf(desc, "%c%c%c%c%c",
             fmt & 0xFF, (fmt >> 8) & 0xFF,
             (fmt >> 16) & 0xFF, (fmt >> 24) & 0xFF,
-            0);
+            '\0');
     return desc;
 }
 
@@ -32,7 +32,7 @@ int save_buffer(struct buffer buffer, char * ext)
     FILE *fp = NULL;
     struct time_recorder tr;
     time_recorder_start(&tr);
-    sprintf(name, "image_%d_%d.%s", tr.start.tv_sec, tr.start.tv_usec, ext);
+    sprintf(name, "image_%ld_%ld.%s", tr.start.tv_sec, tr.start.tv_usec, ext);
     fp = fopen(name, "wb");
     if (fp == NULL) {
         LOGE(DUMP_ERROR, "Can't open %s\n", name);
