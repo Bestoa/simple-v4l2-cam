@@ -1,3 +1,4 @@
+#ifdef __HAS_GUI__
 #include <SDL_image.h>
 
 #include "window.h"
@@ -190,3 +191,4 @@ void window_destory(struct window *window)
     SDL_Quit();
     free(window);
 }
+#endif

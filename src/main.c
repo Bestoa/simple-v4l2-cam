@@ -1,9 +1,11 @@
 #include "camera.h"
 #include "api.h"
 #include "util.h"
-#include "window.h"
 #include "log.h"
 #include "demo.h"
+#ifdef __HAS_GUI__
+#include "window.h"
+#endif
 
 static int read_frame(struct v4l2_camera *cam, int (*func)(struct v4l2_camera *, struct buffer, void *), void *priv_data)
 {
@@ -28,6 +30,7 @@ static int read_frame(struct v4l2_camera *cam, int (*func)(struct v4l2_camera *,
 }
 
 
+#ifdef __HAS_GUI__
 static int display_frame(struct v4l2_camera *cam, struct buffer buffer, void * priv_data)
 {
     if (*(int *)priv_data)
@@ -35,6 +38,7 @@ static int display_frame(struct v4l2_camera *cam, struct buffer buffer, void * p
             return CAMERA_RETURN_FAILURE;
     return window_update_frame((struct window *)cam->priv, buffer.addr, buffer.size, cam->fmt.fmt.pix.pixelformat);
 }
+#endif
 
 static int save_frame(struct v4l2_camera *cam, struct buffer buffer, void * priv_data)
 {
@@ -57,6 +61,7 @@ static void mainloop_noui(struct v4l2_camera *cam, int count)
     camera_stop_capturing(cam);
 }
 
+#ifdef __HAS_GUI__
 static void edit_control(struct v4l2_camera *cam)
 {
     struct v4l2_control ctrl;
@@ -103,6 +108,7 @@ static void mainloop(struct v4l2_camera *cam)
     }
     camera_stop_capturing(cam);
 }
+#endif
 
 int main(int argc, char **argv)
 {
@@ -193,9 +199,13 @@ int main(int argc, char **argv)
     if (!has_gui) {
         mainloop_noui(cam, count);
     } else {
+#ifdef __HAS_GUI__
         cam->priv = window_create(cam->fmt.fmt.pix.width, cam->fmt.fmt.pix.height);
         mainloop(cam);
         window_destory((struct window *)cam->priv);
+#else
+        LOGE(DUMP_NONE, "GUI build is disabled\n");
+#endif
     }
 
     camera_return_and_unmap_buffer(cam);
